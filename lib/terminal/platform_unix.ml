@@ -18,12 +18,12 @@ module Input : Input_intf.S = struct
   let next_key _ =
     let buf = Bytes.create 1 in
     let rec read_char () =
-      try
-        let n = Unix.read Unix.stdin buf 0 1 in
-        if n = 0 then None else Some (Bytes.get buf 0)
-      with Unix.Unix_error (Unix.EINTR, _, _) -> read_char ()
+      let n = Unix.read Unix.stdin buf 0 1 in
+      if n = 0 then None else Some (Bytes.get buf 0)
     in
-    Escape_parser.next_key read_char
+    try
+      Escape_parser.next_key read_char
+    with Unix.Unix_error (Unix.EINTR, _, _) -> None
 
   let close t =
     match t.tc with
@@ -34,13 +34,12 @@ module Input : Input_intf.S = struct
 end
 
 module Terminal : Terminal_intf.S = struct
+  external get_term_size : unit -> int * int = "jeditor_get_term_size"
   type t = Buffer.t
 
   let create () = Ok (Buffer.create 4096)
 
-  let size _ =
-    (* Fallback for Unix size *)
-    (80, 24)
+  let size _ = get_term_size ()
 
   let move_to t ~row ~col =
     Printf.bprintf t "\x1b[%d;%dH" (row + 1) (col + 1)

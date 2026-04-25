@@ -1,11 +1,19 @@
 (test
  (name test_buffer)
+ (modules test_buffer)
  (libraries jeditor_buffer alcotest))
 
 (test
  (name test_cursor)
+ (modules test_cursor)
  (libraries jeditor_core alcotest))
 
 (test
  (name test_app)
+ (modules test_app)
  (libraries jeditor_core jeditor_buffer alcotest))
+
+(test
+ (name test_view)
+ (modules test_view)
+ (libraries jeditor_core alcotest))

@@ -1,8 +1,8 @@
 (library
  (name jeditor_terminal)
- (libraries uutf uuseg unix)
+ (libraries uutf uuseg uucp unix)
  (foreign_stubs (language c) (names terminal_stubs))
- (modules key attr escape_parser terminal input terminal_intf input_intf platform))
+ (modules key attr escape_parser terminal input terminal_intf input_intf platform wcwidth))
 
 (rule
  (target platform.ml)

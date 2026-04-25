@@ -99,9 +99,12 @@ CAMLprim value jeditor_read_char(value unit) {
 
 #else
 
+#include <sys/ioctl.h>
+#include <unistd.h>
+
 CAMLprim value jeditor_enable_vt(value unit) {
     CAMLparam1(unit);
-    CAMLreturn(Val_int(0));
+    CAMLreturn(Val_int(1));
 }
 
 CAMLprim value jeditor_disable_vt(value unit) {
@@ -112,9 +115,15 @@ CAMLprim value jeditor_disable_vt(value unit) {
 CAMLprim value jeditor_get_term_size(value unit) {
     CAMLparam1(unit);
     CAMLlocal1(res);
+    struct winsize ws;
+    int cols = 80, rows = 24;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
+        cols = ws.ws_col;
+        rows = ws.ws_row;
+    }
     res = caml_alloc(2, 0);
-    Store_field(res, 0, Val_int(80));
-    Store_field(res, 1, Val_int(24));
+    Store_field(res, 0, Val_int(cols));
+    Store_field(res, 1, Val_int(rows));
     CAMLreturn(res);
 }
 

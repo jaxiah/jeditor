@@ -1,7 +1,14 @@
 (test
  (name test_key)
+ (modules test_key)
  (libraries jeditor_terminal alcotest))
 
 (test
  (name test_input)
+ (modules test_input)
+ (libraries jeditor_terminal alcotest))
+
+(test
+ (name test_wcwidth)
+ (modules test_wcwidth)
  (libraries jeditor_terminal alcotest))
