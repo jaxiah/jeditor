@@ -7,6 +7,10 @@ type mode =
   | ConfirmQuit
   | PromptGotoLine
   | PromptMx
+  | PromptSearch
+  | PromptReplaceSearch
+  | PromptReplaceWith
+  | PromptReplaceConfirm
 
 type move_target =
   | CharF | CharB | LineN | LineP
@@ -27,6 +31,11 @@ type action =
   | DeleteForward | DeleteWordBack | DeleteWordForward | KillLine
   | StartGotoLinePrompt | StartMx
   | ToggleMark | KillRegion | CopyRegion | Yank | Cancel
+  | StartSearch of [ `Forward | `Backward ]
+  | SearchNext of [ `Forward | `Backward ]
+  | SearchConfirm | SearchCancel | StartQueryReplace
+  | QueryReplaceConfirmSearch | QueryReplaceConfirmReplacement
+  | QueryReplaceYes | QueryReplaceNo | QueryReplaceAll | QueryReplaceQuit
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo | Redo
@@ -59,6 +68,14 @@ and app_state = {
   mark            : int option;
   kill_ring       : string option;
   last_action_was_kill : bool;
+  search_query    : string;
+  search_origin   : int option;
+  search_direction : [ `Forward | `Backward ];
+  search_matches  : (int * int) list;
+  search_current  : int option;
+  search_wrapped  : bool;
+  replace_query   : string;
+  replace_with    : string;
 }
 
 val initial_state : app_state

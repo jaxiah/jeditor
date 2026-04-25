@@ -496,6 +496,99 @@ let test_selection_commands_in_registry () =
     Alcotest.(check bool) ("registry has " ^ name) true (List.mem name names)
   ) [ "set-mark-command"; "kill-region"; "copy-region"; "yank" ]
 
+(* ── ISSUE-014: search / replace ───────────────────────────────────── *)
+
+let type_keys s st =
+  String.fold_left
+    (fun st c -> fst (handle_key st (Key.Char (Uchar.of_char c))))
+    st s
+
+let test_search_opens_and_finds () =
+  let st = state_with_file ~path:"t" ~content:"one two one" in
+  let st = { st with cursor = Cursor.create 1 } in
+  let st = fst (handle_key st (Key.Ctrl 's')) in
+  Alcotest.(check bool) "mode PromptSearch" true (st.mode = PromptSearch);
+  let st = type_keys "one" st in
+  Alcotest.(check int) "cursor at next one" 8 (Cursor.primary st.cursor).head;
+  Alcotest.(check int) "all matches" 2 (List.length st.search_matches)
+
+let test_search_next_wraps () =
+  let st = state_with_file ~path:"t" ~content:"one two one" in
+  let st = fst (handle_key st (Key.Ctrl 's')) |> type_keys "one" in
+  let st = fst (handle_key st (Key.Ctrl 's')) in
+  Alcotest.(check int) "next match" 8 (Cursor.primary st.cursor).head;
+  let st = fst (handle_key st (Key.Ctrl 's')) in
+  Alcotest.(check int) "wrapped to first" 0 (Cursor.primary st.cursor).head;
+  Alcotest.(check bool) "wrapped flag" true st.search_wrapped
+
+let test_search_backward () =
+  let st = { (state_with_file ~path:"t" ~content:"one two one")
+             with cursor = Cursor.create 11 } in
+  let st = fst (handle_key st (Key.Ctrl 'r')) |> type_keys "one" in
+  Alcotest.(check int) "previous match" 8 (Cursor.primary st.cursor).head;
+  let st = fst (handle_key st (Key.Ctrl 'r')) in
+  Alcotest.(check int) "previous previous match" 0 (Cursor.primary st.cursor).head
+
+let test_search_cancel_restores_origin () =
+  let st = { (state_with_file ~path:"t" ~content:"one two one")
+             with cursor = Cursor.create 4 } in
+  let st = fst (handle_key st (Key.Ctrl 's')) |> type_keys "one" in
+  let st = fst (handle_key st (Key.Ctrl 'g')) in
+  Alcotest.(check bool) "mode Normal" true (st.mode = Normal);
+  Alcotest.(check int) "origin restored" 4 (Cursor.primary st.cursor).head
+
+let test_search_confirm_keeps_match () =
+  let st = state_with_file ~path:"t" ~content:"one two one" in
+  let st = fst (handle_key st (Key.Ctrl 's')) |> type_keys "two" in
+  let st = fst (handle_key st Key.Enter) in
+  Alcotest.(check bool) "mode Normal" true (st.mode = Normal);
+  Alcotest.(check int) "cursor at match" 4 (Cursor.primary st.cursor).head
+
+let test_search_smart_case () =
+  let st = state_with_file ~path:"t" ~content:"Foo foo" in
+  let st_lower = fst (handle_key st (Key.Ctrl 's')) |> type_keys "foo" in
+  Alcotest.(check int) "lowercase matches both" 2 (List.length st_lower.search_matches);
+  let st_upper = fst (handle_key st (Key.Ctrl 's')) |> type_keys "Foo" in
+  Alcotest.(check int) "uppercase exact" 1 (List.length st_upper.search_matches)
+
+let test_search_utf8 () =
+  let st = state_with_file ~path:"t" ~content:"abc你好def你好" in
+  let st = fst (handle_key st (Key.Ctrl 's')) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_int 0x4F60))) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_int 0x597D))) in
+  Alcotest.(check int) "first CJK match" 3 (Cursor.primary st.cursor).head;
+  Alcotest.(check int) "two CJK matches" 2 (List.length st.search_matches)
+
+let test_query_replace_prompts () =
+  let st = fst (handle_key initial_state (Key.Meta (Uchar.of_char '%'))) in
+  Alcotest.(check bool) "search prompt" true (st.mode = PromptReplaceSearch);
+  let st = type_keys "foo" st in
+  let st = fst (handle_key st Key.Enter) in
+  Alcotest.(check bool) "replacement prompt" true (st.mode = PromptReplaceWith);
+  Alcotest.(check string) "stored query" "foo" st.replace_query
+
+let test_query_replace_yes_no_quit () =
+  let st = state_with_file ~path:"t" ~content:"foo foo foo" in
+  let st = fst (handle_key st (Key.Meta (Uchar.of_char '%'))) in
+  let st = type_keys "foo" st |> fun st -> fst (handle_key st Key.Enter) in
+  let st = type_keys "bar" st |> fun st -> fst (handle_key st Key.Enter) in
+  Alcotest.(check bool) "confirm mode" true (st.mode = PromptReplaceConfirm);
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'y'))) in
+  Alcotest.(check string) "first replaced" "bar foo foo" (Buffer.to_string st.buffer);
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'n'))) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'q'))) in
+  Alcotest.(check bool) "quit normal" true (st.mode = Normal);
+  Alcotest.(check string) "second skipped" "bar foo foo" (Buffer.to_string st.buffer)
+
+let test_query_replace_all () =
+  let st = state_with_file ~path:"t" ~content:"foo foo foo" in
+  let st = fst (handle_key st (Key.Meta (Uchar.of_char '%'))) in
+  let st = type_keys "foo" st |> fun st -> fst (handle_key st Key.Enter) in
+  let st = type_keys "bar" st |> fun st -> fst (handle_key st Key.Enter) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char '!'))) in
+  Alcotest.(check bool) "mode Normal" true (st.mode = Normal);
+  Alcotest.(check string) "all replaced" "bar bar bar" (Buffer.to_string st.buffer)
+
 let () =
   let open Alcotest in
   run "App" [
@@ -571,5 +664,17 @@ let () =
       test_case "cancel_clears_mark"     `Quick test_cancel_clears_mark;
       test_case "kill_line_appends"      `Quick test_kill_line_appends_to_kill_ring;
       test_case "commands_in_registry"   `Quick test_selection_commands_in_registry;
+    ];
+    "search_replace", [
+      test_case "search_opens_and_finds" `Quick test_search_opens_and_finds;
+      test_case "search_next_wraps"      `Quick test_search_next_wraps;
+      test_case "search_backward"        `Quick test_search_backward;
+      test_case "search_cancel"          `Quick test_search_cancel_restores_origin;
+      test_case "search_confirm"         `Quick test_search_confirm_keeps_match;
+      test_case "search_smart_case"      `Quick test_search_smart_case;
+      test_case "search_utf8"            `Quick test_search_utf8;
+      test_case "replace_prompts"        `Quick test_query_replace_prompts;
+      test_case "replace_yes_no_quit"    `Quick test_query_replace_yes_no_quit;
+      test_case "replace_all"            `Quick test_query_replace_all;
     ];
   ]

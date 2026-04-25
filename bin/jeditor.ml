@@ -28,29 +28,43 @@ let render term state =
         let head = (Cursor.primary state.App.cursor).head in
         if head = mark then None else Some (min mark head, max mark head)
   in
+  let search_highlight_active =
+    match state.App.mode with
+    | App.PromptSearch | App.PromptReplaceConfirm -> true
+    | _ -> false
+  in
+  let highlight_ranges =
+    match selected_range, search_highlight_active with
+    | Some range, _ -> [range]
+    | None, true -> state.App.search_matches
+    | None, false -> []
+  in
   let selection_attr = { Attr.default with Attr.reverse = true } in
   let write_with_selection ~line_start text =
-    match selected_range with
-    | None -> Terminal.write_string term text Attr.default
-    | Some (sel_start, sel_stop) ->
-        let line_stop = line_start + String.length text in
-        let hi_start = max sel_start line_start in
-        let hi_stop = min sel_stop line_stop in
-        if hi_start >= hi_stop then
-          Terminal.write_string term text Attr.default
-        else begin
-          let prefix_len = hi_start - line_start in
-          let selected_len = hi_stop - hi_start in
-          let suffix_start = prefix_len + selected_len in
-          if prefix_len > 0 then
-            Terminal.write_string term (String.sub text 0 prefix_len) Attr.default;
-          Terminal.write_string term
-            (String.sub text prefix_len selected_len) selection_attr;
-          if suffix_start < String.length text then
+    let line_stop = line_start + String.length text in
+    let ranges =
+      highlight_ranges
+      |> List.filter_map (fun (start, stop) ->
+        let hi_start = max start line_start in
+        let hi_stop = min stop line_stop in
+        if hi_start < hi_stop then Some (hi_start - line_start, hi_stop - line_start)
+        else None)
+      |> List.sort compare
+    in
+    let rec write_chunks pos = function
+      | [] ->
+          if pos < String.length text then
             Terminal.write_string term
-              (String.sub text suffix_start (String.length text - suffix_start))
+              (String.sub text pos (String.length text - pos))
               Attr.default
-        end
+      | (start, stop) :: rest ->
+          if pos < start then
+            Terminal.write_string term (String.sub text pos (start - pos)) Attr.default;
+          Terminal.write_string term (String.sub text start (stop - start)) selection_attr;
+          write_chunks stop rest
+    in
+    if ranges = [] then Terminal.write_string term text Attr.default
+    else write_chunks 0 ranges
   in
 
   Terminal.hide_cursor term;
@@ -104,6 +118,16 @@ let render term state =
         "Go to line: " ^ state.App.minibuf ^ "_"
     | App.PromptMx ->
         "M-x " ^ state.App.minibuf ^ "_"
+    | App.PromptSearch ->
+        let suffix = if state.App.search_wrapped then " [wrapped]" else "" in
+        "I-search: " ^ state.App.minibuf ^ "_" ^ suffix
+    | App.PromptReplaceSearch ->
+        "Query replace: " ^ state.App.minibuf ^ "_"
+    | App.PromptReplaceWith ->
+        "Query replace " ^ state.App.replace_query ^ " with: " ^ state.App.minibuf ^ "_"
+    | App.PromptReplaceConfirm ->
+        "Replace " ^ state.App.replace_query ^ " with " ^ state.App.replace_with
+        ^ "? (y/n/!/q)"
     | _ ->
         if state.App.pending_keys <> [] then
           (* show accumulated prefix hint, e.g. "C-x ..." *)

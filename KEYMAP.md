@@ -54,9 +54,12 @@ can be overridden by adding a higher-priority layer to `app_state.keymap`.
 | Key       | Command   | Description                                         |
 | --------- | --------- | --------------------------------------------------- |
 | `C-c`     | `quit`    | Quit (prompts if unsaved changes)                   |
+| `C-s`     | `isearch-forward` | Incremental search forward                  |
+| `C-r`     | `isearch-backward` | Incremental search backward                 |
 | `C-g`     | `cancel`  | Cancel prompt or pending prefix                     |
 | `Escape`  | `cancel`  | Cancel prompt or pending prefix                     |
 | `M-x`     | `execute-extended-command` | Prompt for and execute a named command |
+| `M-%`     | `query-replace` | Query replace search matches                  |
 
 ## Notes
 
@@ -68,6 +71,9 @@ can be overridden by adding a higher-priority layer to `app_state.keymap`.
 - **Region selection**: `C-Space` (`C-@` in terminal notation) toggles the mark.
   The region between mark and cursor is highlighted; `C-g` clears the active
   mark.
+- **Incremental search**: `C-s` and `C-r` open minibuffer search. Typing moves
+  to matches immediately; repeated `C-s`/`C-r` cycles through matches, and
+  `C-g` restores the pre-search cursor.
 - **Unbound keys**: non-printable unbound keys display `"Key not bound"` in
   the status bar.
 - **Self-insert**: any printable `Key.Char` not bound in the keymap is

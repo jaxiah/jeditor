@@ -86,6 +86,8 @@ let emacs_default =
   |> bind [Key.Ctrl 'g']          "cancel"
   |> bind [Key.Escape]            "cancel"
   |> bind [Key.Ctrl 'c']          "quit"
+  |> bind [Key.Ctrl 's']          "isearch-forward"
+  |> bind [Key.Ctrl 'r']          "isearch-backward"
   |> bind [Key.Ctrl 'x'; Key.Ctrl 's'] "save"
   |> bind [Key.Ctrl 'x'; Key.Ctrl 'w'] "save-as"
   |> bind [Key.Ctrl 'x'; Key.Ctrl 'c'] "quit"
@@ -94,3 +96,4 @@ let emacs_default =
   |> bind [m 'g'; Key.Char (Uchar.of_char 'g')] "goto-line"
   |> bind [m 'g'; m 'g']          "goto-line"
   |> bind [m 'x']                 "execute-extended-command"
+  |> bind [m '%']                 "query-replace"
