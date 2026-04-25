@@ -26,6 +26,7 @@ type action =
   | Move of move_target
   | DeleteForward | DeleteWordBack | DeleteWordForward | KillLine
   | StartGotoLinePrompt | StartMx
+  | ToggleMark | KillRegion | CopyRegion | Yank | Cancel
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo | Redo
@@ -55,6 +56,9 @@ and app_state = {
   pending_keys    : Key.t list;
   keymap          : Keymap.t list;
   registry        : handler Registry.t;
+  mark            : int option;
+  kill_ring       : string option;
+  last_action_was_kill : bool;
 }
 
 val initial_state : app_state

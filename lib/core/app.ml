@@ -40,6 +40,11 @@ type action =
   | KillLine
   | StartGotoLinePrompt
   | StartMx
+  | ToggleMark
+  | KillRegion
+  | CopyRegion
+  | Yank
+  | Cancel
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo
@@ -71,6 +76,9 @@ and app_state = {
   pending_keys    : Key.t list;
   keymap          : Keymap.t list;
   registry        : handler Registry.t;
+  mark            : int option;
+  kill_ring       : string option;
+  last_action_was_kill : bool;
 }
 
 let prompt_action_of_key mode key =
@@ -131,7 +139,11 @@ let command_of_name name =
   | "goto-line"            -> StartGotoLinePrompt
   | "help"                 -> Help
   | "execute-extended-command" -> StartMx
-  | "cancel"               -> Ignore
+  | "set-mark-command"     -> ToggleMark
+  | "kill-region"          -> KillRegion
+  | "copy-region"          -> CopyRegion
+  | "yank"                 -> Yank
+  | "cancel"               -> Cancel
   | _                      -> Ignore
 
 (** Return the byte length of the UTF-8 codepoint ending at [offset]. *)
@@ -170,6 +182,27 @@ let longest_common_prefix = function
       ) rest;
       String.sub first 0 !lcp_len
 
+let primary_head st = (Cursor.primary st.cursor).head
+
+let region_bounds st =
+  match st.mark with
+  | None -> None
+  | Some mark ->
+      let head = primary_head st in
+      if head = mark then None
+      else Some (min mark head, max mark head)
+
+let clear_kill_sequence st = { st with last_action_was_kill = false }
+
+let with_kill_ring ~killed st =
+  let kill_ring =
+    if st.last_action_was_kill then
+      Some (Option.value ~default:"" st.kill_ring ^ killed)
+    else
+      Some killed
+  in
+  { st with kill_ring; last_action_was_kill = true }
+
 let ensure_cursor_visible st =
   let (line, _) = Buffer.offset_to_line_col ~offset:(Cursor.primary st.cursor).head st.buffer in
   let reserved_rows =
@@ -197,6 +230,7 @@ let rec update state action =
        | snap :: rest ->
            let current = take_snapshot st in
            { st with buffer = snap.buffer; cursor = snap.cursor;
+                     mark = None; last_action_was_kill = false;
                      undo_stack = rest; redo_stack = current :: st.redo_stack }, Noop)
   | Redo ->
       (match st.redo_stack with
@@ -204,9 +238,10 @@ let rec update state action =
        | snap :: rest ->
            let current = take_snapshot st in
            { st with buffer = snap.buffer; cursor = snap.cursor;
+                     mark = None; last_action_was_kill = false;
                      redo_stack = rest; undo_stack = current :: st.undo_stack }, Noop)
   | Help ->
-      { st with message = "Welcome to JEditor! (C-x C-c to quit)" }, Noop
+      clear_kill_sequence { st with message = "Welcome to JEditor! (C-x C-c to quit)" }, Noop
   (* ── normal editing ─────────────────────────────────────────────── *)
   | Insert c ->
       let snap = take_snapshot st in
@@ -217,7 +252,7 @@ let rec update state action =
       let buffer = Buffer.insert ~offset s st.buffer in
       let inserted = String.length s in
       let cursor = Cursor.apply_edit ~offset ~deleted:0 ~inserted st.cursor in
-      { st with buffer; cursor; modified = true; 
+      { st with buffer; cursor; modified = true; mark = None; last_action_was_kill = false;
                 undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
   | Backspace ->
       let offset = (Cursor.primary st.cursor).head in
@@ -227,16 +262,16 @@ let rec update state action =
         let edit_offset = offset - char_len in
         let buffer = Buffer.delete ~offset:edit_offset ~length:char_len st.buffer in
         let cursor = Cursor.apply_edit ~offset:edit_offset ~deleted:char_len ~inserted:0 st.cursor in
-        { st with buffer; cursor; modified = true;
+        { st with buffer; cursor; modified = true; mark = None; last_action_was_kill = false;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
       else
-        st, Noop
+        clear_kill_sequence st, Noop
   | Enter ->
       let snap = take_snapshot st in
       let offset = (Cursor.primary st.cursor).head in
       let buffer = Buffer.insert ~offset "\n" st.buffer in
       let cursor = Cursor.apply_edit ~offset ~deleted:0 ~inserted:1 st.cursor in
-      { st with buffer; cursor; modified = true;
+      { st with buffer; cursor; modified = true; mark = None; last_action_was_kill = false;
                 undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
   (* ── navigation ─────────────────────────────────────────────────── *)
   | Move target ->
@@ -279,7 +314,7 @@ let rec update state action =
         | BufStart -> 0
         | BufEnd -> Buffer.length buf
       in
-      { st with cursor = Cursor.create new_head }, Noop
+      clear_kill_sequence { st with cursor = Cursor.create new_head }, Noop
   | DeleteForward ->
       let offset = (Cursor.primary st.cursor).head in
       let char_len = utf8_char_length_at st.buffer offset in
@@ -287,9 +322,9 @@ let rec update state action =
         let snap = take_snapshot st in
         let buffer = Buffer.delete ~offset ~length:char_len st.buffer in
         let cursor = Cursor.apply_edit ~offset ~deleted:char_len ~inserted:0 st.cursor in
-        { st with buffer; cursor; modified = true;
+        { st with buffer; cursor; modified = true; mark = None; last_action_was_kill = false;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
-      else st, Noop
+      else clear_kill_sequence st, Noop
   | DeleteWordBack ->
       let offset = (Cursor.primary st.cursor).head in
       let word_start = Buffer.prev_word_boundary ~offset st.buffer in
@@ -298,9 +333,9 @@ let rec update state action =
         let snap = take_snapshot st in
         let buffer = Buffer.delete ~offset:word_start ~length:del_len st.buffer in
         let cursor = Cursor.apply_edit ~offset:word_start ~deleted:del_len ~inserted:0 st.cursor in
-        { st with buffer; cursor; modified = true;
+        { st with buffer; cursor; modified = true; mark = None; last_action_was_kill = false;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
-      else st, Noop
+      else clear_kill_sequence st, Noop
   | DeleteWordForward ->
       let offset = (Cursor.primary st.cursor).head in
       let word_end = Buffer.next_word_boundary ~offset st.buffer in
@@ -309,9 +344,9 @@ let rec update state action =
         let snap = take_snapshot st in
         let buffer = Buffer.delete ~offset ~length:del_len st.buffer in
         let cursor = Cursor.apply_edit ~offset ~deleted:del_len ~inserted:0 st.cursor in
-        { st with buffer; cursor; modified = true;
+        { st with buffer; cursor; modified = true; mark = None; last_action_was_kill = false;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
-      else st, Noop
+      else clear_kill_sequence st, Noop
   | KillLine ->
       let offset = (Cursor.primary st.cursor).head in
       let (l, _) = Buffer.offset_to_line_col ~offset st.buffer in
@@ -326,31 +361,73 @@ let rec update state action =
       in
       if kill_len > 0 then
         let snap = take_snapshot st in
+        let killed = Buffer.slice ~start:offset ~length:kill_len st.buffer in
         let buffer = Buffer.delete ~offset ~length:kill_len st.buffer in
         let cursor = Cursor.apply_edit ~offset ~deleted:kill_len ~inserted:0 st.cursor in
-        { st with buffer; cursor; modified = true;
+        { (with_kill_ring ~killed st) with buffer; cursor; modified = true; mark = None;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
-      else st, Noop
+      else clear_kill_sequence st, Noop
+  | ToggleMark ->
+      let mark = match st.mark with None -> Some (primary_head st) | Some _ -> None in
+      clear_kill_sequence { st with mark }, Noop
+  | CopyRegion ->
+      (match region_bounds st with
+       | None -> clear_kill_sequence st, Noop
+       | Some (start, stop) ->
+           let killed = Buffer.slice ~start ~length:(stop - start) st.buffer in
+           { st with kill_ring = Some killed; last_action_was_kill = false }, Noop)
+  | KillRegion ->
+      (match region_bounds st with
+       | None -> clear_kill_sequence st, Noop
+       | Some (start, stop) ->
+           let snap = take_snapshot st in
+           let len = stop - start in
+           let killed = Buffer.slice ~start ~length:len st.buffer in
+           let buffer = Buffer.delete ~offset:start ~length:len st.buffer in
+           { st with buffer; kill_ring = Some killed; cursor = Cursor.create start;
+                     mark = None; modified = true; last_action_was_kill = false;
+                     undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop)
+  | Yank ->
+      (match st.kill_ring with
+       | None | Some "" -> clear_kill_sequence st, Noop
+       | Some text ->
+           let snap = take_snapshot st in
+           let inserted = String.length text in
+           let ranges =
+             Cursor.to_list st.cursor
+             |> List.sort (fun a b -> compare a.Cursor.head b.Cursor.head)
+           in
+           let buffer, cursor, _shift =
+             List.fold_left (fun (buffer, cursor, shift) range ->
+               let offset = range.Cursor.head + shift in
+               let buffer = Buffer.insert ~offset text buffer in
+               let cursor = Cursor.apply_edit ~offset ~deleted:0 ~inserted cursor in
+               buffer, cursor, shift + inserted
+             ) (st.buffer, st.cursor, 0) ranges
+           in
+           { st with buffer; cursor; mark = None; modified = true;
+                     last_action_was_kill = false;
+                     undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop)
   (* ── M-x ────────────────────────────────────────────────────────── *)
   | StartMx ->
-      { st with mode = PromptMx; minibuf = "" }, Noop
+      clear_kill_sequence { st with mode = PromptMx; minibuf = "" }, Noop
   (* ── goto-line ──────────────────────────────────────────────────── *)
   | StartGotoLinePrompt ->
-      { st with mode = PromptGotoLine; minibuf = "" }, Noop
+      clear_kill_sequence { st with mode = PromptGotoLine; minibuf = "" }, Noop
   | JumpToLine n ->
       let line_count = Buffer.line_count st.buffer in
       let line = max 0 (min (n - 1) (line_count - 1)) in
       let offset = Buffer.line_to_offset ~line st.buffer in
-      { st with mode = Normal; minibuf = ""; cursor = Cursor.create offset }, Noop
+      clear_kill_sequence { st with mode = Normal; minibuf = ""; cursor = Cursor.create offset }, Noop
   (* ── save ───────────────────────────────────────────────────────── *)
   | Save -> (match st.file_path with
       | Some path ->
           let content = Buffer.to_string st.buffer in
-          { st with mode = Normal }, WriteFile { path; content }
+          clear_kill_sequence { st with mode = Normal }, WriteFile { path; content }
       | None ->
-          { st with mode = PromptSaveAs; minibuf = "" }, Noop)
+          clear_kill_sequence { st with mode = PromptSaveAs; minibuf = "" }, Noop)
   | StartSaveAs ->
-      { st with mode = PromptSaveAs; minibuf = "" }, Noop
+      clear_kill_sequence { st with mode = PromptSaveAs; minibuf = "" }, Noop
   (* ── minibuffer (save-as path entry) ────────────────────────────── *)
   | MinibufAppend c ->
       let b = Stdlib.Buffer.create 4 in
@@ -376,7 +453,7 @@ let rec update state action =
            let content = Buffer.to_string st.buffer in
            { st with mode = Normal; minibuf = "" }, WriteFile { path; content })
   | MinibufCancel ->
-      { st with mode = Normal; minibuf = "" }, Noop
+      clear_kill_sequence { st with mode = Normal; minibuf = "" }, Noop
   | MinibufTab ->
       (match st.mode with
        | PromptMx ->
@@ -388,18 +465,20 @@ let rec update state action =
        | _ -> st, Noop)
   (* ── IO results ─────────────────────────────────────────────────── *)
   | WriteDone path ->
-      { st with file_path = Some path; modified = false; message = "Saved." }, Noop
+      clear_kill_sequence { st with file_path = Some path; modified = false; message = "Saved." }, Noop
   | WriteError msg ->
-      { st with message = msg }, Noop
+      clear_kill_sequence { st with message = msg }, Noop
   (* ── quit ───────────────────────────────────────────────────────── *)
   | TryQuit ->
       if st.modified
-      then { st with mode = ConfirmQuit }, Noop
-      else { st with quit = true }, Noop
+      then clear_kill_sequence { st with mode = ConfirmQuit }, Noop
+      else clear_kill_sequence { st with quit = true }, Noop
   | Quit ->
-      { st with quit = true }, Noop
+      clear_kill_sequence { st with quit = true }, Noop
+  | Cancel ->
+      { st with mark = None; message = ""; last_action_was_kill = false }, Noop
   | Ignore ->
-      st, Noop
+      clear_kill_sequence st, Noop
   in
   (ensure_cursor_visible new_st, cmd)
 
@@ -412,6 +491,7 @@ let default_registry =
     "delete-forward-char"; "backward-delete-char"; "delete-word-back";
     "kill-word-forward"; "kill-line"; "new-line"; "save"; "save-as";
     "quit"; "undo"; "redo"; "goto-line"; "execute-extended-command";
+    "set-mark-command"; "kill-region"; "copy-region"; "yank";
   ] in
   List.fold_left (fun r name ->
     let action = command_of_name name in
@@ -435,6 +515,9 @@ let initial_state = {
   pending_keys = [];
   keymap       = [Keymap.emacs_default];
   registry     = default_registry;
+  mark         = None;
+  kill_ring    = None;
+  last_action_was_kill = false;
 }
 
 let state_with_file ~path ~content = {

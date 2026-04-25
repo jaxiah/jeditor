@@ -423,6 +423,79 @@ let test_mx_tab_lcp () =
   Alcotest.(check string) "minibuf extended to LCP"
     "move-forward-" st.minibuf
 
+(* ── ISSUE-013: selection / clipboard ──────────────────────────────── *)
+
+let test_mark_toggle () =
+  let st = { initial_state with cursor = Cursor.create 3 } in
+  let st = fst (handle_key st (Key.Ctrl '@')) in
+  Alcotest.(check (option int)) "mark set" (Some 3) st.mark;
+  let st = fst (handle_key st (Key.Ctrl '@')) in
+  Alcotest.(check (option int)) "mark cleared" None st.mark
+
+let test_kill_region_forward_undo () =
+  let st = state_with_file ~path:"t" ~content:"abcdef" in
+  let st = { st with cursor = Cursor.create 2 } in
+  let st = upd st ToggleMark in
+  let st = { st with cursor = Cursor.create 5 } in
+  let st = upd st KillRegion in
+  Alcotest.(check string) "region deleted" "abf" (Buffer.to_string st.buffer);
+  Alcotest.(check (option string)) "kill ring" (Some "cde") st.kill_ring;
+  Alcotest.(check (option int)) "mark cleared" None st.mark;
+  Alcotest.(check int) "cursor at region start" 2 (Cursor.primary st.cursor).head;
+  let st = upd st Undo in
+  Alcotest.(check string) "undo restores buffer" "abcdef" (Buffer.to_string st.buffer)
+
+let test_copy_region_backward () =
+  let st = state_with_file ~path:"t" ~content:"abcdef" in
+  let st = { st with cursor = Cursor.create 5 } in
+  let st = upd st ToggleMark in
+  let st = { st with cursor = Cursor.create 2 } in
+  let st = upd st CopyRegion in
+  Alcotest.(check string) "buffer unchanged" "abcdef" (Buffer.to_string st.buffer);
+  Alcotest.(check (option string)) "kill ring" (Some "cde") st.kill_ring;
+  Alcotest.(check int) "undo stack unchanged" 0 (List.length st.undo_stack)
+
+let test_yank_at_cursor () =
+  let st = { (state_with_file ~path:"t" ~content:"ab")
+             with cursor = Cursor.create 1; kill_ring = Some "XY" } in
+  let st = upd st Yank in
+  Alcotest.(check string) "yanked" "aXYb" (Buffer.to_string st.buffer);
+  Alcotest.(check int) "cursor after yank" 3 (Cursor.primary st.cursor).head
+
+let test_yank_multiple_cursors () =
+  let cursor =
+    Cursor.of_list [
+      { Cursor.head = 1; anchor = 1 };
+      { Cursor.head = 3; anchor = 3 };
+    ]
+  in
+  let st = { (state_with_file ~path:"t" ~content:"abcd")
+             with cursor; kill_ring = Some "x" } in
+  let st = upd st Yank in
+  Alcotest.(check string) "yanked at each cursor" "axbcxd"
+    (Buffer.to_string st.buffer)
+
+let test_cancel_clears_mark () =
+  let st = { initial_state with mark = Some 0; cursor = Cursor.create 4 } in
+  let st = fst (handle_key st (Key.Ctrl 'g')) in
+  Alcotest.(check (option int)) "mark cleared" None st.mark
+
+let test_kill_line_appends_to_kill_ring () =
+  let st = state_with_file ~path:"t" ~content:"a\nb\nc" in
+  let st = upd st KillLine in
+  Alcotest.(check string) "first kill" "\nb\nc" (Buffer.to_string st.buffer);
+  Alcotest.(check (option string)) "first kill ring" (Some "a") st.kill_ring;
+  let st = upd st KillLine in
+  Alcotest.(check string) "second kill removes newline" "b\nc"
+    (Buffer.to_string st.buffer);
+  Alcotest.(check (option string)) "appended kill ring" (Some "a\n") st.kill_ring
+
+let test_selection_commands_in_registry () =
+  let names = Registry.names initial_state.registry in
+  List.iter (fun name ->
+    Alcotest.(check bool) ("registry has " ^ name) true (List.mem name names)
+  ) [ "set-mark-command"; "kill-region"; "copy-region"; "yank" ]
+
 let () =
   let open Alcotest in
   run "App" [
@@ -488,5 +561,15 @@ let () =
       test_case "register_new_command"   `Quick test_mx_register_new_command;
       test_case "all_builtins_reachable" `Quick test_mx_all_builtins_reachable;
       test_case "tab_lcp"                `Quick test_mx_tab_lcp;
+    ];
+    "selection_clipboard", [
+      test_case "mark_toggle"            `Quick test_mark_toggle;
+      test_case "kill_region_forward_undo" `Quick test_kill_region_forward_undo;
+      test_case "copy_region_backward"   `Quick test_copy_region_backward;
+      test_case "yank_at_cursor"         `Quick test_yank_at_cursor;
+      test_case "yank_multiple_cursors"  `Quick test_yank_multiple_cursors;
+      test_case "cancel_clears_mark"     `Quick test_cancel_clears_mark;
+      test_case "kill_line_appends"      `Quick test_kill_line_appends_to_kill_ring;
+      test_case "commands_in_registry"   `Quick test_selection_commands_in_registry;
     ];
   ]

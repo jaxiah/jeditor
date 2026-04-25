@@ -21,6 +21,37 @@ let render term state =
     | App.PromptMx -> max 0 (rows - 2)
     | _ -> max 0 (rows - 1)
   in
+  let selected_range =
+    match state.App.mark with
+    | None -> None
+    | Some mark ->
+        let head = (Cursor.primary state.App.cursor).head in
+        if head = mark then None else Some (min mark head, max mark head)
+  in
+  let selection_attr = { Attr.default with Attr.reverse = true } in
+  let write_with_selection ~line_start text =
+    match selected_range with
+    | None -> Terminal.write_string term text Attr.default
+    | Some (sel_start, sel_stop) ->
+        let line_stop = line_start + String.length text in
+        let hi_start = max sel_start line_start in
+        let hi_stop = min sel_stop line_stop in
+        if hi_start >= hi_stop then
+          Terminal.write_string term text Attr.default
+        else begin
+          let prefix_len = hi_start - line_start in
+          let selected_len = hi_stop - hi_start in
+          let suffix_start = prefix_len + selected_len in
+          if prefix_len > 0 then
+            Terminal.write_string term (String.sub text 0 prefix_len) Attr.default;
+          Terminal.write_string term
+            (String.sub text prefix_len selected_len) selection_attr;
+          if suffix_start < String.length text then
+            Terminal.write_string term
+              (String.sub text suffix_start (String.length text - suffix_start))
+              Attr.default
+        end
+  in
 
   Terminal.hide_cursor term;
   Terminal.clear_screen term;
@@ -50,7 +81,7 @@ let render term state =
       let full_line = Buffer.slice ~start:line_start ~length:display_len state.App.buffer in
       (* Simple truncation for now; ideally would use display width *)
       let truncated = if String.length full_line > text_cols then String.sub full_line 0 text_cols else full_line in
-      Terminal.write_string term truncated Attr.default
+      write_with_selection ~line_start truncated
     end
   done;
 

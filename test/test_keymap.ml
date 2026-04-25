@@ -53,6 +53,8 @@ let test_emacs_default () =
   check [Key.Ctrl 'f']              "move-forward-char";
   check [Key.Ctrl 'n']              "move-next-line";
   check [Key.Ctrl 'k']              "kill-line";
+  check [Key.Ctrl 'w']              "kill-region";
+  check [Key.Ctrl 'y']              "yank";
   check [Key.Ctrl 'x'; Key.Ctrl 's'] "save";
   check [Key.Meta (Uchar.of_char 'g'); Key.Char (Uchar.of_char 'g')] "goto-line";
   check [Key.Meta (Uchar.of_char 'g'); Key.Meta (Uchar.of_char 'g')] "goto-line"

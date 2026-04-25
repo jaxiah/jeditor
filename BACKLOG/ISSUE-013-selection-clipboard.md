@@ -10,14 +10,14 @@ The kill ring is a single-entry clipboard in Phase 1 (no ring history). C-w cuts
 
 ## Acceptance criteria
 
-- [ ] C-Space sets the mark at the current cursor position; a second C-Space clears it
-- [ ] The selected region is visually highlighted (inverse video or a distinct background color)
-- [ ] C-w removes the selected text and stores it in the kill ring; this is undoable as a single operation
-- [ ] M-w copies the selected text to the kill ring without modifying the buffer
-- [ ] C-y inserts the kill ring content at each active cursor position
-- [ ] C-g clears the mark and deactivates the region
-- [ ] C-k appends to the kill ring when called on consecutive lines (standard Emacs kill-append behavior)
-- [ ] All operations work correctly when the mark is before or after the cursor
+- [x] C-Space sets the mark at the current cursor position; a second C-Space clears it
+- [x] The selected region is visually highlighted (inverse video or a distinct background color)
+- [x] C-w removes the selected text and stores it in the kill ring; this is undoable as a single operation
+- [x] M-w copies the selected text to the kill ring without modifying the buffer
+- [x] C-y inserts the kill ring content at each active cursor position
+- [x] C-g clears the mark and deactivates the region
+- [x] C-k appends to the kill ring when called on consecutive lines (standard Emacs kill-append behavior)
+- [x] All operations work correctly when the mark is before or after the cursor
 
 ## Blocked by
 
@@ -30,3 +30,11 @@ The kill ring is a single-entry clipboard in Phase 1 (no ring history). C-w cuts
 - User story 19 (C-w cut)
 - User story 20 (C-y paste)
 - User story 24 (C-g cancel / deactivate mark)
+
+## Status
+
+2026-04-25 -- all acceptance criteria met. Added mark state, single-entry kill
+ring, region copy/cut/yank commands, consecutive `C-k` kill append, Normal-mode
+`C-g` mark clearing, inverse-video region rendering, keymap/registry entries,
+and focused App tests for forward/backward selections, multi-cursor yank, undo,
+and registry reachability.
