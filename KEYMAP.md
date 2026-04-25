@@ -23,8 +23,11 @@ This document lists the currently supported Emacs-style keybindings in JEditor.
 | ---------------- | --------------- | --------------------------------------- |
 | `Backspace`      | `Backspace`     | Delete character before the cursor      |
 | `C-d` / `Delete` | `DeleteForward` | Delete character at the cursor          |
-| `C-k`            | `KillLine`      | Kill from cursor to the end of the line |
-| `Enter`          | `Enter`         | Insert a newline                        |
+| `C-k` | `KillLine` | Kill from cursor to the end of the line |
+| `Enter` | `Enter` | Insert a newline |
+| `C-/` | `Undo` | Undo the last buffer-modifying action |
+| `M-_` | `Redo` | Redo the last undone action |
+
 
 ## 3. File Operations (C-x Prefix)
 

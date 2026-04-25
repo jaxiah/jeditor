@@ -37,6 +37,13 @@ type action =
   | DeleteForward
   | KillLine
   | Resize of { cols : int; rows : int }
+  | Undo
+  | Redo
+
+type snapshot = {
+  buffer : Buffer.t;
+  cursor : Cursor.t;
+}
 
 type app_state = {
   buffer          : Buffer.t;
@@ -50,6 +57,8 @@ type app_state = {
   scroll_top_line : int;
   cols            : int;
   rows            : int;
+  undo_stack      : snapshot list;
+  redo_stack      : snapshot list;
 }
 
 let initial_state = {
@@ -64,6 +73,8 @@ let initial_state = {
   scroll_top_line = 0;
   cols      = 80;
   rows      = 24;
+  undo_stack = [];
+  redo_stack = [];
 }
 
 let state_with_file ~path ~content = {
@@ -94,6 +105,8 @@ let action_of_key mode key =
       | Key.Ctrl 'e'             -> Move LineEnd
       | Key.Ctrl 'd'             -> DeleteForward
       | Key.Ctrl 'k'             -> KillLine
+      | Key.Ctrl '/'             -> Undo
+      | Key.Meta (c) when Uchar.to_char c = '_' -> Redo
       | _                        -> Ignore)
   | PendingCx -> (match key with
       | Key.Ctrl 's'             -> Save
@@ -148,11 +161,27 @@ let ensure_cursor_visible st =
 
 let update state action =
   let st = { state with message = "" } in
+  let take_snapshot st = { buffer = st.buffer; cursor = st.cursor } in
   let (new_st, cmd) = match action with
   | Resize { cols; rows } ->
       { st with cols; rows }, Noop
+  | Undo ->
+      (match st.undo_stack with
+       | [] -> st, Noop
+       | snap :: rest ->
+           let current = take_snapshot st in
+           { st with buffer = snap.buffer; cursor = snap.cursor;
+                     undo_stack = rest; redo_stack = current :: st.redo_stack }, Noop)
+  | Redo ->
+      (match st.redo_stack with
+       | [] -> st, Noop
+       | snap :: rest ->
+           let current = take_snapshot st in
+           { st with buffer = snap.buffer; cursor = snap.cursor;
+                     redo_stack = rest; undo_stack = current :: st.undo_stack }, Noop)
   (* ── normal editing ─────────────────────────────────────────────── *)
   | Insert c ->
+      let snap = take_snapshot st in
       let b = Stdlib.Buffer.create 4 in
       Stdlib.Buffer.add_utf_8_uchar b c;
       let s = Stdlib.Buffer.contents b in
@@ -160,22 +189,27 @@ let update state action =
       let buffer = Buffer.insert ~offset s st.buffer in
       let inserted = String.length s in
       let cursor = Cursor.apply_edit ~offset ~deleted:0 ~inserted st.cursor in
-      { st with buffer; cursor; modified = true }, Noop
+      { st with buffer; cursor; modified = true; 
+                undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
   | Backspace ->
       let offset = (Cursor.primary st.cursor).head in
       if offset > 0 then
+        let snap = take_snapshot st in
         let char_len = utf8_char_length_before st.buffer offset in
         let edit_offset = offset - char_len in
         let buffer = Buffer.delete ~offset:edit_offset ~length:char_len st.buffer in
         let cursor = Cursor.apply_edit ~offset:edit_offset ~deleted:char_len ~inserted:0 st.cursor in
-        { st with buffer; cursor; modified = true }, Noop
+        { st with buffer; cursor; modified = true;
+                  undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
       else
         st, Noop
   | Enter ->
+      let snap = take_snapshot st in
       let offset = (Cursor.primary st.cursor).head in
       let buffer = Buffer.insert ~offset "\n" st.buffer in
       let cursor = Cursor.apply_edit ~offset ~deleted:0 ~inserted:1 st.cursor in
-      { st with buffer; cursor; modified = true }, Noop
+      { st with buffer; cursor; modified = true;
+                undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
   (* ── navigation ─────────────────────────────────────────────────── *)
   | Move target ->
       let buf = st.buffer in
@@ -222,9 +256,11 @@ let update state action =
       let offset = (Cursor.primary st.cursor).head in
       let char_len = utf8_char_length_at st.buffer offset in
       if char_len > 0 then
+        let snap = take_snapshot st in
         let buffer = Buffer.delete ~offset ~length:char_len st.buffer in
         let cursor = Cursor.apply_edit ~offset ~deleted:char_len ~inserted:0 st.cursor in
-        { st with buffer; cursor; modified = true }, Noop
+        { st with buffer; cursor; modified = true;
+                  undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
       else st, Noop
   | KillLine ->
       let offset = (Cursor.primary st.cursor).head in
@@ -239,9 +275,11 @@ let update state action =
         else line_end - offset
       in
       if kill_len > 0 then
+        let snap = take_snapshot st in
         let buffer = Buffer.delete ~offset ~length:kill_len st.buffer in
         let cursor = Cursor.apply_edit ~offset ~deleted:kill_len ~inserted:0 st.cursor in
-        { st with buffer; cursor; modified = true }, Noop
+        { st with buffer; cursor; modified = true;
+                  undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
       else st, Noop
   (* ── C-x prefix ─────────────────────────────────────────────────── *)
   | PendingCx ->

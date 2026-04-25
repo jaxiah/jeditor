@@ -37,6 +37,13 @@ type action =
   | DeleteForward
   | KillLine
   | Resize of { cols : int; rows : int }
+  | Undo
+  | Redo
+
+  type snapshot = {
+  buffer : Buffer.t;
+  cursor : Cursor.t;
+  }
 
   type app_state = {
   buffer          : Buffer.t;
@@ -50,8 +57,9 @@ type action =
   scroll_top_line : int;
   cols            : int;
   rows            : int;
+  undo_stack      : snapshot list;
+  redo_stack      : snapshot list;
   }
-
 
 val initial_state : app_state
 val state_with_file : path:string -> content:string -> app_state

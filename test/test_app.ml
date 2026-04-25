@@ -149,6 +149,37 @@ let test_scrolling () =
   let st = upd st (Move BufStart) in
   Alcotest.(check int) "scrolls back to start" 0 st.scroll_top_line
 
+(* ── ISSUE-010 undo/redo tests ────────────────────────────────────────── *)
+
+let test_undo_redo () =
+  let st = initial_state in
+  (* 1. Simple undo *)
+  let st1 = upd st (Insert (Uchar.of_char 'a')) in
+  Alcotest.(check string) "inserted a" "a" (Buffer.to_string st1.buffer);
+  let st2 = upd st1 Undo in
+  Alcotest.(check string) "undo returns to empty" "" (Buffer.to_string st2.buffer);
+  Alcotest.(check int) "undo restores cursor" 0 (Cursor.primary st2.cursor).head;
+  
+  (* 2. Redo *)
+  let st3 = upd st2 Redo in
+  Alcotest.(check string) "redo restores a" "a" (Buffer.to_string st3.buffer);
+  Alcotest.(check int) "redo restores cursor" 1 (Cursor.primary st3.cursor).head;
+
+  (* 3. Undo chain *)
+  let st_chain = upd st1 (Insert (Uchar.of_char 'b')) in (* "ab" *)
+  let st_chain = upd st_chain (Insert (Uchar.of_char 'c')) in (* "abc" *)
+  Alcotest.(check string) "buffer is abc" "abc" (Buffer.to_string st_chain.buffer);
+  let st_u1 = upd st_chain Undo in (* "ab" *)
+  Alcotest.(check string) "undo 1: ab" "ab" (Buffer.to_string st_u1.buffer);
+  let st_u2 = upd st_u1 Undo in (* "a" *)
+  Alcotest.(check string) "undo 2: a" "a" (Buffer.to_string st_u2.buffer);
+  
+  (* 4. History forking (Edit after Undo clears Redo) *)
+  let st_fork = upd st_u1 (Insert (Uchar.of_char 'z')) in (* "abz" *)
+  Alcotest.(check int) "redo stack cleared after edit" 0 (List.length st_fork.redo_stack);
+  let st_no_redo = upd st_fork Redo in
+  Alcotest.(check string) "redo does nothing after fork" "abz" (Buffer.to_string st_no_redo.buffer)
+
 let () =
   let open Alcotest in
   run "App" [
@@ -179,5 +210,8 @@ let () =
     "nav", [
       test_case "navigation"             `Quick test_navigation;
       test_case "scrolling"              `Quick test_scrolling;
+    ];
+    "history", [
+      test_case "undo_redo"              `Quick test_undo_redo;
     ];
   ]
