@@ -35,7 +35,7 @@ let test_extended () =
   check_parse "page up" ['\x1b'; '['; '5'; '~'] Jeditor_terminal.Key.Page_up;
   check_parse "page down" ['\x1b'; '['; '6'; '~'] Jeditor_terminal.Key.Page_down
 
-(* UTF-8 multi-byte: "中" = 0xE4 0xB8 0xAD, "é" = 0xC3 0xA9, "𝄞" = 0xF0 0x9D 0x84 0x9E *)
+(* UTF-8 multi-byte: Chinese character = 0xE4 0xB8 0xAD, "é" = 0xC3 0xA9, "𝄞" = 0xF0 0x9D 0x84 0x9E *)
 let test_utf8 () =
   check_parse "CJK 3-byte" ['\xE4'; '\xB8'; '\xAD']
     (Jeditor_terminal.Key.Char (Uchar.of_int 0x4E2D));

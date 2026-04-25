@@ -30,7 +30,7 @@ type action =
   | TryQuit            (** C-x C-c or Escape: quit if clean, else ConfirmQuit *)
   | MinibufAppend of Uchar.t
   | MinibufBackspace
-  | MinibufConfirm     (** Enter in PromptSaveAs → emits WriteFile effect *)
+  | MinibufConfirm     (** Enter in PromptSaveAs -> emits WriteFile effect *)
   | MinibufCancel      (** C-g; also 'n' in ConfirmQuit *)
   | WriteDone of string   (** IO layer: save succeeded, carries final path *)
   | WriteError of string  (** IO layer: save failed, carries error message *)
@@ -59,7 +59,7 @@ val state_with_file : path:string -> content:string -> app_state
     modified = false; file_path = Some path. *)
 
 val action_of_key : mode -> Key.t -> action
-(** Mode-aware key → action dispatch (replaces ISSUE-006's Key.t -> action).
+(** Mode-aware key -> action dispatch (replaces ISSUE-006's Key.t -> action).
     The full keymap system arrives in ISSUE-011; this is the interim impl. *)
 
 val update : app_state -> action -> app_state * effect
@@ -93,22 +93,22 @@ val update : app_state -> action -> app_state * effect
 #### `update` state-machine rules (summary)
 
 - Any `Insert` / `Backspace` / `Enter` in Normal mode: sets `modified = true`, clears `message`.
-- `PendingCx`: mode → PendingCx, message cleared.
+- `PendingCx`: mode -> PendingCx, message cleared.
 - `Save` with `file_path = Some p`: returns `WriteFile {path=p; content}`. If `file_path = None`, falls back to `StartSaveAs`.
-- `Save` / `StartSaveAs` with `file_path = None`: mode → PromptSaveAs, minibuf = "".
-- `StartSaveAs`: mode → PromptSaveAs, minibuf = "".
-- `MinibufConfirm` in PromptSaveAs: returns `WriteFile {path=minibuf; content}`, mode → Normal.
-- `MinibufCancel`: mode → Normal, minibuf = "", message = "".
+- `Save` / `StartSaveAs` with `file_path = None`: mode -> PromptSaveAs, minibuf = "".
+- `StartSaveAs`: mode -> PromptSaveAs, minibuf = "".
+- `MinibufConfirm` in PromptSaveAs: returns `WriteFile {path=minibuf; content}`, mode -> Normal.
+- `MinibufCancel`: mode -> Normal, minibuf = "", message = "".
 - `WriteDone path`: file_path = Some path, modified = false, message = "Saved.".
 - `WriteError msg`: message = msg, modified unchanged.
 - `TryQuit` when `modified = false`: quit = true.
-- `TryQuit` when `modified = true`: mode → ConfirmQuit.
+- `TryQuit` when `modified = true`: mode -> ConfirmQuit.
 - `Quit` (from ConfirmQuit 'y'): quit = true.
-- `Ignore` in PendingCx: mode → Normal (consumes the pending prefix).
+- `Ignore` in PendingCx: mode -> Normal (consumes the pending prefix).
 
 ---
 
-### `bin/jeditor.ml` — main loop change
+### `bin/jeditor.ml` -- main loop change
 
 ```ocaml
 (* Key dispatch is now mode-aware *)
@@ -143,9 +143,9 @@ let state = ref (match Sys.argv with
 The last terminal row is reserved. Content is rendered to rows `0 .. (term_rows - 2)`.
 Bottom row shows one of:
 - `PromptSaveAs`: `Save as: {minibuf}▌`
-- `ConfirmQuit`: `Unsaved changes — quit anyway? (y/n)`
-- `message ≠ ""`: the message string
-- otherwise: `{filename or "[No Name]"}{" *" if modified}`
+- `ConfirmQuit`: `Unsaved changes -- quit anyway? (y/n)`
+- message != "": the message string
+- otherwise: {filename or "[No Name]"}{" *" if modified}
 
 ## Module Boundaries
 
@@ -158,23 +158,23 @@ No new library modules. File I/O stays entirely in `bin/jeditor.ml` (the imperat
 
 ## Deep Module Opportunities
 
-`update` encapsulates the entire mode state-machine. The `bin/jeditor.ml` never inspects `mode` or `minibuf` directly — it only reads `quit`, `message`, `file_path`, `modified` for rendering, and feeds back `WriteDone`/`WriteError`. This means the state machine can be redesigned (e.g. when ISSUE-011 replaces the keymap) without touching the shell.
+`update` encapsulates the entire mode state-machine. The `bin/jeditor.ml` never inspects `mode` or `minibuf` directly -- it only reads `quit`, `message`, `file_path`, `modified` for rendering, and feeds back `WriteDone`/`WriteError`. This means the state machine can be redesigned (e.g. when ISSUE-011 replaces the keymap) without touching the shell.
 
 ## Testing Priorities
 
-1. `state_with_file` sets buffer content, file_path, modified=false — covers: "`jeditor path` reads the file and displays it" (the pure half; file reading is in the shell).
-2. `update state Save` when `file_path = Some p` → returns `WriteFile` effect with correct content — covers: "C-x C-s saves to its file path".
-3. `update state Save` when `file_path = None` → mode becomes `PromptSaveAs` — covers: "C-x C-s falls back to prompting like C-x C-w".
-4. `MinibufAppend` / `MinibufBackspace` accumulate and edit `minibuf` correctly — covers: "C-x C-w prompts for a file path".
-5. `MinibufConfirm` → returns `WriteFile` effect with `path = minibuf` — covers: "C-x C-w saves to that path".
-6. `WriteDone path` → `modified = false`, `file_path = Some path`, `message = "Saved."` — covers: "saving a file that does not yet exist creates it" (observable state after success).
-7. `WriteError msg` → `message = msg`, modified unchanged — covers: "read errors display a message without crashing".
-8. `Insert` / `Backspace` / `Enter` → sets `modified = true` — covers: status bar `*` indicator (the flag that drives rendering).
-9. `TryQuit` when `modified = true` → mode = `ConfirmQuit` — covers: "C-x C-c prompts 'Unsaved changes'".
-10. `TryQuit` when `modified = false` → `quit = true` — covers: "C-x C-c quits cleanly when no unsaved changes".
-11. In `ConfirmQuit` mode, `Quit` action → `quit = true` — covers: confirming the quit prompt.
-12. In `ConfirmQuit` mode, `MinibufCancel` → mode = Normal, `quit = false` — covers: cancelling the quit prompt.
+1. `state_with_file` sets buffer content, file_path, modified=false -- covers: "`jeditor path` reads the file and displays it" (the pure half; file reading is in the shell).
+2. `update state Save` when `file_path = Some p` -> returns `WriteFile` effect with correct content -- covers: "C-x C-s saves to its file path".
+3. `update state Save` when `file_path = None` -> mode becomes `PromptSaveAs` -- covers: "C-x C-s falls back to prompting like C-x C-w".
+4. `MinibufAppend` / `MinibufBackspace` accumulate and edit `minibuf` correctly -- covers: "C-x C-w prompts for a file path".
+5. `MinibufConfirm` -> returns `WriteFile` effect with `path = minibuf` -- covers: "C-x C-w saves to that path".
+6. `WriteDone path` -> `modified = false`, `file_path = Some path`, `message = "Saved."` -- covers: "saving a file that does not yet exist creates it" (observable state after success).
+7. `WriteError msg` -> `message = msg`, modified unchanged -- covers: "read errors display a message without crashing".
+8. `Insert` / `Backspace` / `Enter` -> sets `modified = true` -- covers: status bar `*` indicator (the flag that drives rendering).
+9. `TryQuit` when `modified = true` -> mode = `ConfirmQuit` -- covers: "C-x C-c prompts 'Unsaved changes'".
+10. `TryQuit` when `modified = false` -> `quit = true` -- covers: "C-x C-c quits cleanly when no unsaved changes".
+11. In `ConfirmQuit` mode, `Quit` action -> `quit = true` -- covers: confirming the quit prompt.
+12. In `ConfirmQuit` mode, `MinibufCancel` -> mode = Normal, `quit = false` -- covers: cancelling the quit prompt.
 
 ## Open Questions
 
-None — all decisions resolved during design.
+None -- all decisions resolved during design.

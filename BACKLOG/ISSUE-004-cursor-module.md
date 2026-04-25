@@ -4,7 +4,7 @@
 
 ## What to build
 
-Implement the `Cursor` module, which manages a sorted, non-overlapping list of cursors. Each cursor is an absolute byte offset into the buffer plus an optional anchor offset for selections. This module is the authoritative home for all invariant enforcement and offset adjustment logic — no other module should contain cursor arithmetic.
+Implement the `Cursor` module, which manages a sorted, non-overlapping list of cursors. Each cursor is an absolute byte offset into the buffer plus an optional anchor offset for selections. This module is the authoritative home for all invariant enforcement and offset adjustment logic -- no other module should contain cursor arithmetic.
 
 The key operation is `apply_edit`: given an edit (start offset + byte delta), atomically update every cursor in the list. The three cases are: cursor before the edit point (unchanged), cursor inside a deleted range (clamp to edit start), cursor after the edit point (shift by delta). After any mutation, the list must be re-sorted and deduplicated.
 
@@ -24,9 +24,9 @@ The key operation is `apply_edit`: given an edit (start offset + byte delta), at
 
 ## User stories addressed
 
-- User stories 40–44 (multi-cursor)
-- Foundational prerequisite for user stories 5–13, 17–20.
+- User stories 40-44 (multi-cursor)
+- Foundational prerequisite for user stories 5-13, 17-20.
 
 ## Completed
 
-2024-05-24 — all acceptance criteria met. Implemented via TDD.
+2024-05-24 -- all acceptance criteria met. Implemented via TDD.

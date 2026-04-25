@@ -6,13 +6,13 @@
 
 ### `lib/core/view.ml` (new)
 
-Pure layout computations — no terminal I/O, no app_state dependency.
+Pure layout computations -- no terminal I/O, no app_state dependency.
 
 ```ocaml
 val gutter_width : line_count:int -> int
 (** Column width of the line-number gutter for a buffer with [line_count] lines.
     Format: right-aligned number + one space.
-    Examples: 1–9 → 2, 10–99 → 3, 100–999 → 4. *)
+    Examples: 1-9 -> 2, 10-99 -> 3, 100-999 -> 4. *)
 
 val status_text :
   file_path:string option ->
@@ -47,14 +47,14 @@ val string_display_width : string -> int
 val display_col_of_byte_col : string -> byte_col:int -> int
 (** Given a UTF-8 line string and a byte offset within it, return the
     corresponding display column (sum of [char_width] for all codepoints
-    before [byte_col]). Used to map cursor byte offset → terminal column. *)
+    before [byte_col]). Used to map cursor byte offset -> terminal column. *)
 ```
 
 Depends on `uucp` (same author as `uutf`/`uuseg`).
 
 ---
 
-### `lib/terminal/terminal_stubs.c` — Unix `get_term_size`
+### `lib/terminal/terminal_stubs.c` -- Unix `get_term_size`
 
 Add real `ioctl TIOCGWINSZ` implementation under `#else`:
 
@@ -74,11 +74,11 @@ CAMLprim value jeditor_get_term_size(value unit) {
 
 ---
 
-### `lib/terminal/platform_unix.ml` — two changes
+### `lib/terminal/platform_unix.ml` -- two changes
 
 **`size`**: replace hardcoded `(80, 24)` with `get_term_size ()` (external).
 
-**`next_key`**: do NOT retry on EINTR — return `None` instead:
+**`next_key`**: do NOT retry on EINTR -- return `None` instead:
 ```ocaml
 with Unix.Unix_error (Unix.EINTR, _, _) -> None
 ```
@@ -86,7 +86,7 @@ This allows SIGWINCH to interrupt the blocking read and propagate up to the main
 
 ---
 
-### `bin/jeditor.ml` — render + resize
+### `bin/jeditor.ml` -- render + resize
 
 ```ocaml
 let needs_redraw = ref false
@@ -150,10 +150,10 @@ done
 
 | Module | Change |
 |--------|--------|
-| `lib/core/view.ml` | **New** — pure layout functions, no deps |
-| `lib/terminal/wcwidth.ml` | **New** — `uucp`-backed display width |
+| `lib/core/view.ml` | **New** -- pure layout functions, no deps |
+| `lib/terminal/wcwidth.ml` | **New** -- `uucp`-backed display width |
 | `lib/terminal/terminal_stubs.c` | Add Unix `ioctl TIOCGWINSZ` |
-| `lib/terminal/platform_unix.ml` | Real `size`; EINTR → `None` in `next_key` |
+| `lib/terminal/platform_unix.ml` | Real `size`; EINTR -> `None` in `next_key` |
 | `lib/terminal/dune` | Add `wcwidth` to modules; add `uucp` to libraries |
 | `lib/core/dune` | Add `view` to modules |
 | `jeditor.opam` | Add `uucp` |
@@ -163,21 +163,21 @@ File I/O remains entirely in `bin/jeditor.ml`. The renderer remains in `bin/jedi
 
 ## Deep Module Opportunities
 
-**`View.status_text`** hides all the padding, truncation, and column-counting logic behind a single call. When ISSUE-018 (plugin system) is implemented, this function becomes the insertion point for a `status_bar_providers` hook — plugins register functions, the renderer collects their contributions, and `View.status_text` formats the result. No other module needs to change.
+**`View.status_text`** hides all the padding, truncation, and column-counting logic behind a single call. When ISSUE-018 (plugin system) is implemented, this function becomes the insertion point for a `status_bar_providers` hook -- plugins register functions, the renderer collects their contributions, and `View.status_text` formats the result. No other module needs to change.
 
 **`Wcwidth.display_col_of_byte_col`** hides the UTF-8 decode + width-sum loop. The caller (renderer) just passes a line string and a byte offset; it never needs to know about Uucp internals.
 
 ## Testing Priorities
 
-1. `View.gutter_width` returns correct column count for boundary values (1, 9, 10, 99, 100, 1000) — covers: "gutter width adjusts automatically as the file grows past 9, 99, 999 lines".
-2. `View.status_text` contains filename when file_path is set; `[No Name]` otherwise — covers: "status bar shows filename (or `[No Name]`)".
-3. `View.status_text` contains `*` when modified=true; no `*` when false — covers: "status bar `**` modified indicator" (using single `*` here; the issue says `**` — to confirm).
-4. `View.status_text` contains `{line+1}:{col+1}` correctly — covers: "cursor position as line:col".
-5. `View.status_text` output length equals [cols] argument — covers: "text area correctly excludes gutter and status bar rows" (status bar stays in its row).
-6. `Wcwidth.char_width` returns 2 for a CJK codepoint, 1 for ASCII — covers: "cursor column counts display columns, CJK = 2 columns".
-7. `Wcwidth.display_col_of_byte_col` on a mixed ASCII+CJK string returns correct display column — covers: "cursor column in status bar counts display columns, not bytes".
-8. [manual] Line numbers visible in gutter, right-aligned — covers: "line numbers displayed in a right-aligned gutter".
-9. [manual] Resize terminal → next keypress redraws correctly — covers: "resizing the terminal window redraws correctly without corruption".
+1. `View.gutter_width` returns correct column count for boundary values (1, 9, 10, 99, 100, 1000) -- covers: "gutter width adjusts automatically as the file grows past 9, 99, 999 lines".
+2. `View.status_text` contains filename when file_path is set; `[No Name]` otherwise -- covers: "status bar shows filename (or `[No Name]`)".
+3. `View.status_text` contains `*` when modified=true; no `*` when false -- covers: "status bar `**` modified indicator" (using single `*` here; the issue says `**` -- to confirm).
+4. `View.status_text` contains `{line+1}:{col+1}` correctly -- covers: "cursor position as line:col".
+5. `View.status_text` output length equals [cols] argument -- covers: "text area correctly excludes gutter and status bar rows" (status bar stays in its row).
+6. `Wcwidth.char_width` returns 2 for a CJK codepoint, 1 for ASCII -- covers: "cursor column counts display columns, CJK = 2 columns".
+7. `Wcwidth.display_col_of_byte_col` on a mixed ASCII+CJK string returns correct display column -- covers: "cursor column in status bar counts display columns, not bytes".
+8. [manual] Line numbers visible in gutter, right-aligned -- covers: "line numbers displayed in a right-aligned gutter".
+9. [manual] Resize terminal -> next keypress redraws correctly -- covers: "resizing the terminal window redraws correctly without corruption".
 
 ## Open Questions
 

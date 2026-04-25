@@ -1,1 +1,1 @@
-(* Editor core logic — implemented in later issues. *)
+(* Editor core logic -- implemented in later issues. *)

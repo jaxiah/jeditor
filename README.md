@@ -1,11 +1,11 @@
 # jeditor
 
-一个使用 OCaml 编写的、注重函数式编程风格的跨平台 TUI 文本编辑器 (AI agent 构建)。
+A cross-platform TUI text editor written in OCaml, emphasizing functional programming style (built by an AI agent).
 
-## 已实现功能
+## Features Implemented
 
-- **跨平台 TUI 后端**: 在 Windows (Win32 API) 和 Unix 平台上均支持原生 VT 模式。
-- **UTF-8 安全的缓冲区**: 纯函数式文本管理，支持多行编辑及 CJK 字符解析。
-- **现代化光标模型**: 采用 Selection/Cursor 分离设计，支持光标自动合并与编辑自适应。
-- **核心编辑操作**: 支持字符输入、删除、换行及基本文件 IO（打开、保存、另存为）。
-- **交互反馈**: 具备基础状态栏显示及未保存更改提醒。
+- **Cross-platform TUI Backend**: Supports native VT sequences on both Windows (Win32 API) and Unix platforms.
+- **UTF-8 Safe Buffer**: Purely functional text management supporting multi-line editing and CJK character parsing.
+- **Modern Cursor Model**: Adopts a separated Selection/Cursor design, supporting automatic cursor merging and adaptive positioning after edits.
+- **Core Editing Operations**: Supports character insertion, deletion, line breaks, and basic file I/O (open, save, save as).
+- **Interactive Feedback**: Features a basic status bar display and prompts for unsaved changes.

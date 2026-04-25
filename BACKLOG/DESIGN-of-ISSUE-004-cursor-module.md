@@ -31,13 +31,13 @@ It will encapsulate all logic for moving, shifting, and merging cursors, keeping
 
 ## Testing Priorities
 
-1. Single cursor: create, to_list — covers: `Cursor.t` is opaque; `create` and `to_list` in public interface.
-2. Single cursor edit: apply_edit before, after, and exactly at edit point — covers: `apply_edit` correctly handles all three cursor-relative-to-edit cases.
-3. Single cursor edit: apply_edit inside deleted range (clamped) — covers: `apply_edit` correctly handles cursor inside deleted range.
-4. Selection anchor: apply_edit preserving anchor, clamping if deleted — covers: selection anchor is preserved correctly through edits.
-5. Multi-cursor: of_list sorts and deduplicates — covers: sorted, non-overlapping invariant.
-6. Multi-cursor edit: atomic update shifts some, clamps others — covers: `apply_edit` on list with multiple cursors updates all atomically.
-7. Collision and merge: edits that cause cursors to overlap merge them into one — covers: cursors that collide after an edit are merged into one.
+1. Single cursor: create, to_list -- covers: `Cursor.t` is opaque; `create` and `to_list` in public interface.
+2. Single cursor edit: apply_edit before, after, and exactly at edit point -- covers: `apply_edit` correctly handles all three cursor-relative-to-edit cases.
+3. Single cursor edit: apply_edit inside deleted range (clamped) -- covers: `apply_edit` correctly handles cursor inside deleted range.
+4. Selection anchor: apply_edit preserving anchor, clamping if deleted -- covers: selection anchor is preserved correctly through edits.
+5. Multi-cursor: of_list sorts and deduplicates -- covers: sorted, non-overlapping invariant.
+6. Multi-cursor edit: atomic update shifts some, clamps others -- covers: `apply_edit` on list with multiple cursors updates all atomically.
+7. Collision and merge: edits that cause cursors to overlap merge them into one -- covers: cursors that collide after an edit are merged into one.
 
 ## Open Questions
 

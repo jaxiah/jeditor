@@ -4,7 +4,7 @@
 
 ## What to build
 
-Add file persistence: open a named file from the CLI, display its contents, and save it back. This is the first issue that exercises the filesystem boundary. The save-as path is read from a temporary minibuffer input (a minimal single-line prompt at the bottom of the screen — the full Minibuffer module comes in ISSUE-012).
+Add file persistence: open a named file from the CLI, display its contents, and save it back. This is the first issue that exercises the filesystem boundary. The save-as path is read from a temporary minibuffer input (a minimal single-line prompt at the bottom of the screen -- the full Minibuffer module comes in ISSUE-012).
 
 ## Acceptance criteria
 
@@ -13,7 +13,7 @@ Add file persistence: open a named file from the CLI, display its contents, and 
 - [x] C-x C-s saves the current buffer to its file path; if the buffer has no path, falls back to prompting like C-x C-w
 - [x] C-x C-w prompts for a file path at the bottom of the screen and saves to that path
 - [x] The status bar shows the filename and a `*` indicator when the buffer has unsaved changes
-- [x] C-x C-c prompts "Unsaved changes — quit anyway? (y/n)" when the buffer is modified
+- [x] C-x C-c prompts "Unsaved changes -- quit anyway? (y/n)" when the buffer is modified
 - [x] Saving a file that does not yet exist creates it
 - [x] Read errors (file not found, permission denied) display a message at the bottom of the screen without crashing
 
@@ -31,4 +31,4 @@ Add file persistence: open a named file from the CLI, display its contents, and 
 
 ## Completed
 
-2026-04-25 — all acceptance criteria met. Implemented via TDD. 13 new automated tests cover the full state machine (mode transitions, cmd effects, minibuf accumulation, WriteDone/WriteError, TryQuit/ConfirmQuit). [manual] criteria verified by running `dune exec jeditor`. Note: `effect` is a reserved keyword in OCaml 5; renamed to `cmd` in the implementation.
+2026-04-25 -- all acceptance criteria met. Implemented via TDD. 13 new automated tests cover the full state machine (mode transitions, cmd effects, minibuf accumulation, WriteDone/WriteError, TryQuit/ConfirmQuit). [manual] criteria verified by running `dune exec jeditor`. Note: `effect` is a reserved keyword in OCaml 5; renamed to `cmd` in the implementation.

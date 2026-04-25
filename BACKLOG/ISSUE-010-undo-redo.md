@@ -17,7 +17,7 @@ Every command that modifies the buffer pushes the pre-edit `Editor.t` onto the u
 - [ ] Undo/redo correctly restores cursor position alongside buffer content
 - [ ] Undo on a freshly opened buffer does nothing (no error, no crash)
 - [ ] Undo history is not bounded in Phase 1 (no arbitrary limit)
-- [ ] Undo/redo does not affect the file's on-disk state — only in-memory buffer is changed
+- [ ] Undo/redo does not affect the file's on-disk state -- only in-memory buffer is changed
 
 ## Blocked by
 

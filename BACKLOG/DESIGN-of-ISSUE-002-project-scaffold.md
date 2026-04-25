@@ -4,7 +4,7 @@
 
 ## Interfaces
 
-### 目录结构与 dune 库名
+### Directory Structure and Dune Library Names
 
 ```
 jeditor/
@@ -13,7 +13,7 @@ jeditor/
 ├── .ocamlformat                  (* (version 0.26) *)
 ├── bin/
 │   ├── dune                      (* (executable (name jeditor) (public_name jeditor) (libraries jeditor_core jeditor_terminal)) *)
-│   └── jeditor.ml                (* 唯一持有 app_state ref 的文件，主循环入口 *)
+│   └── jeditor.ml                (* The only file allowed to hold an app_state ref, entry point for the main loop *)
 ├── lib/
 │   ├── buffer/
 │   │   └── dune                  (* (library (name jeditor_buffer)) *)
@@ -25,14 +25,14 @@ jeditor/
 │       └── dune                  (* (library (name jeditor_plugin) (libraries jeditor_core)) *)
 └── test/
     ├── dune                      (* (test (name test_main) (libraries jeditor_buffer alcotest)) *)
-    └── test_placeholder.ml       (* 至少一个通过的占位测试 *)
+    └── test_placeholder.ml       (* At least one passing placeholder test *)
 ```
 
-### `bin/jeditor.ml` 骨架（接口约定）
+### `bin/jeditor.ml` Skeleton (Interface Convention)
 
 ```ocaml
-(* jeditor.ml 是唯一允许存在副作用的文件。
-   它的结构约定如下，后续 issue 只扩展 loop，不改变顶层形状。 *)
+(* jeditor.ml is the only file allowed to have side effects.
+   Its structural convention is as follows; subsequent issues will only extend the loop without changing the top-level shape. *)
 
 let () =
   let term   = Terminal.create () |> Result.get_ok in
@@ -47,43 +47,43 @@ let () =
        | Some _ | None -> ())
 ```
 
-### opam 依赖清单
+### opam Dependency List
 
-| 包 | 用途 | dev-only |
+| Package | Purpose | dev-only |
 |----|------|----------|
-| `uutf` | UTF-8 编解码 | 否 |
-| `uuseg` | 字素簇分割（显示宽度计算） | 否 |
-| `alcotest` | 单元测试框架 | 是 |
+| `uutf` | UTF-8 encoding/decoding | No |
+| `uuseg` | Grapheme cluster segmentation (display width calculation) | No |
+| `alcotest` | Unit testing framework | Yes |
 
-**不包含 Notty** — 终端后端由 ISSUE-005 自行实现。
+**Does not include Notty** -- the terminal backend is self-implemented in ISSUE-005.
 
-### OCaml 版本
+### OCaml Version
 
-目标 **OCaml 5.4+**。`dune-project` 中声明：
+Targeting **OCaml 5.4+**. Declared in `dune-project`:
 ```
 (lang dune 3.16)
 (using ocamlformat 0.1)
 ```
-`.ocaml-version` 文件写入 `5.4.1`。
+`.ocaml-version` file written as `5.4.1`.
 
 ## Module Boundaries
 
-- `jeditor_buffer`：无任何外部依赖，纯函数式，最先可测试
-- `jeditor_terminal`：只依赖 `uutf`/`uuseg`，不依赖任何其他 jeditor 库
-- `jeditor_core`：依赖 buffer + terminal，包含 App_state 和 Update
-- `jeditor_plugin`：依赖 core，对外暴露插件 API
-- `bin/main.ml`：依赖 core + terminal，是唯一的副作用入口
+- `jeditor_buffer`: No external dependencies, purely functional, first to be testable.
+- `jeditor_terminal`: Depends only on `uutf`/`uuseg`, does not depend on any other jeditor library.
+- `jeditor_core`: Depends on buffer + terminal, contains App_state and Update.
+- `jeditor_plugin`: Depends on core, exposes the plugin API.
+- `bin/main.ml`: Depends on core + terminal, the only entry point for side effects.
 
 ## Deep Module Opportunities
 
-此 issue 本身不引入深模块，但脚手架阶段需要确立一个约定：**每个库的根模块（`jeditor_buffer/buffer.ml`、`jeditor_terminal/terminal.ml` 等）只重导出本库的公开接口，不暴露内部实现模块。** 这一约定从第一天起执行，避免后续出现抽象泄漏。
+This issue itself does not introduce deep modules, but the scaffolding phase needs to establish a convention: **The root module of each library (`jeditor_buffer/buffer.ml`, `jeditor_terminal/terminal.ml`, etc.) should only re-export the library's public interface and not expose internal implementation modules.** This convention is enforced from day one to avoid abstraction leaks later on.
 
 ## Testing Priorities
 
-1. `dune build` 成功，无警告
-2. `dune test` 运行占位测试并报告 0 failures
-3. `dune exec jeditor` 在 Windows Terminal 中启动并退出，终端状态完全恢复
+1. `dune build` succeeds with no warnings.
+2. `dune test` runs placeholder tests and reports 0 failures.
+3. `dune exec jeditor` starts and exits in Windows Terminal, with terminal state fully restored.
 
 ## Open Questions
 
-无。
+None.

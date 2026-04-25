@@ -1,1 +1,1 @@
-(* Plugin system — implemented in ISSUE-018. *)
+(* Plugin system -- implemented in ISSUE-018. *)

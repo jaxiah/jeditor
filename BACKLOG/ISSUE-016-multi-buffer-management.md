@@ -4,7 +4,7 @@
 
 ## What to build
 
-Extend the `App` state to maintain a map of open buffers (buffer-id → `Editor.t`), independent of the window layout. Any window can display any buffer. Implement the buffer-switching and lifecycle commands.
+Extend the `App` state to maintain a map of open buffers (buffer-id -> `Editor.t`), independent of the window layout. Any window can display any buffer. Implement the buffer-switching and lifecycle commands.
 
 ## Acceptance criteria
 

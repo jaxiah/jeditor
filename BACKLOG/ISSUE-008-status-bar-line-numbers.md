@@ -12,7 +12,7 @@ Add persistent screen chrome: a line-number gutter on the left and a status bar 
 - [ ] Gutter width adjusts automatically as the file grows past 9, 99, 999 lines etc.
 - [ ] The status bar on the bottom row shows: filename (or `[No Name]`), cursor position as `line:col`, total line count, and a `**` modified indicator
 - [ ] Cursor column in the status bar counts display columns, not bytes (CJK characters count as 2 columns)
-- [ ] The text area correctly excludes gutter and status bar rows — the cursor never renders on top of chrome
+- [ ] The text area correctly excludes gutter and status bar rows -- the cursor never renders on top of chrome
 - [ ] Resizing the terminal window (SIGWINCH on Linux, console resize event on Windows) redraws correctly without corruption
 
 ## Blocked by

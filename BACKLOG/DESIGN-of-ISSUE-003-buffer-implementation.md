@@ -42,9 +42,9 @@ module SimpleBuffer : S
 
 ## Testing Priorities
 
-1. Empty buffer creation and properties (`length` = 0, `line_count` = 1, `to_string` = "") — covers: `Buffer.S` signature includes `empty`, `length`, `line_count`, `to_string`; `SimpleBuffer` implements `Buffer.S`.
-2. `of_string` and `to_string` round-tripping for single-line and multi-line strings — covers: `of_string` and `to_string` in signature; `SimpleBuffer` implements `Buffer.S`.
-3. `insert` at start, middle, and end of the buffer — covers: `insert` in signature; operations return new `t` values (pure functions).
-4. `delete` spanning line boundaries — covers: `delete` in signature; operations spanning line boundaries.
-5. Coordinate mapping: `line_to_offset` and `offset_to_line_col` accuracy on multi-line text — covers: `line_to_offset` and `offset_to_line_col` in signature.
-6. CJK (multi-byte UTF-8 sequences) correctness — covers: all operations preserve valid UTF-8; no operation may split a multi-byte codepoint.
+1. Empty buffer creation and properties (`length` = 0, `line_count` = 1, `to_string` = "") -- covers: `Buffer.S` signature includes `empty`, `length`, `line_count`, `to_string`; `SimpleBuffer` implements `Buffer.S`.
+2. `of_string` and `to_string` round-tripping for single-line and multi-line strings -- covers: `of_string` and `to_string` in signature; `SimpleBuffer` implements `Buffer.S`.
+3. `insert` at start, middle, and end of the buffer -- covers: `insert` in signature; operations return new `t` values (pure functions).
+4. `delete` spanning line boundaries -- covers: `delete` in signature; operations spanning line boundaries.
+5. Coordinate mapping: `line_to_offset` and `offset_to_line_col` accuracy on multi-line text -- covers: `line_to_offset` and `offset_to_line_col` in signature.
+6. CJK (multi-byte UTF-8 sequences) correctness -- covers: all operations preserve valid UTF-8; no operation may split a multi-byte codepoint.

@@ -12,12 +12,12 @@ The renderer must be updated to paint each window into its assigned screen recta
 
 - [ ] C-x 2 splits the current window horizontally (top/bottom), both halves showing the same buffer
 - [ ] C-x 3 splits the current window vertically (left/right), both halves showing the same buffer
-- [ ] Splits can be nested arbitrarily — C-x 2 inside an already-split window creates a third pane
+- [ ] Splits can be nested arbitrarily -- C-x 2 inside an already-split window creates a third pane
 - [ ] C-x o cycles focus through all windows in the frame
 - [ ] C-x 0 closes the current window; its space is given to an adjacent sibling
 - [ ] C-x 1 closes all windows except the current one
 - [ ] C-x 0 on the last remaining window does nothing (no crash)
-- [ ] Each window scrolls independently — the same buffer can be viewed at two different positions simultaneously
+- [ ] Each window scrolls independently -- the same buffer can be viewed at two different positions simultaneously
 - [ ] The split divider line is rendered between windows and does not overlap text
 - [ ] Terminal resize redistributes window proportions correctly
 

@@ -18,5 +18,5 @@ end
 
 (** The current buffer implementation. The underlying representation is
     abstract; callers must not depend on it. To swap implementations,
-    change [buffer.ml] only — this interface is the stable contract. *)
+    change [buffer.ml] only -- this interface is the stable contract. *)
 include S

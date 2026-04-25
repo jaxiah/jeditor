@@ -4,13 +4,13 @@
 
 ## What to build
 
-Replace the hardcoded key dispatch in ISSUE-006 with a proper layered keymap system. Keybindings are data, not code — no binding is hardcoded in the `update` function or anywhere in the core modules.
+Replace the hardcoded key dispatch in ISSUE-006 with a proper layered keymap system. Keybindings are data, not code -- no binding is hardcoded in the `update` function or anywhere in the core modules.
 
 A `Keymap.t` is a prefix tree where leaf nodes are command name strings and internal nodes are prefix keys (e.g. C-x branches to a sub-keymap). The lookup function takes a `Keymap.t list` (the active stack, highest priority first) and a `Key.t`, and returns `Matched of string`, `Pending` (waiting for the next key in a prefix chain), or `Unbound`.
 
-The editor ships a built-in `Keymap.emacs_default` value that covers all bindings introduced in ISSUE-006 through ISSUE-010. This value is constructed at startup and installed as the global layer. It has no special status — it can be replaced, derived from, or shadowed by users and plugins.
+The editor ships a built-in `Keymap.emacs_default` value that covers all bindings introduced in ISSUE-006 through ISSUE-010. This value is constructed at startup and installed as the global layer. It has no special status -- it can be replaced, derived from, or shadowed by users and plugins.
 
-Layering priority: buffer-local → mode → global. Plugins and user config add layers at startup by prepending to the stack.
+Layering priority: buffer-local -> mode -> global. Plugins and user config add layers at startup by prepending to the stack.
 
 ## Acceptance criteria
 

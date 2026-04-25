@@ -1,14 +1,14 @@
-# PRD-001: JEditor — Core TUI Text Editor
+# PRD-001: JEditor -- Core TUI Text Editor
 
 ## Problem Statement
 
-The user wants to build a TUI-based text editor in OCaml as a vehicle for learning both the OCaml language (module system, functors, algebraic data types, pure functional style) and the fundamentals of editor design (text buffer data structures, modal interaction, multi-cursor editing, plugin systems). The editor should be practically usable on files ranging from a few lines to several million lines, run cross-platform (Windows and Linux), and be extensible enough that any behavior can be overridden or augmented via OCaml plugins — similar in spirit to Emacs and its Elisp environment.
+The user wants to build a TUI-based text editor in OCaml as a vehicle for learning both the OCaml language (module system, functors, algebraic data types, pure functional style) and the fundamentals of editor design (text buffer data structures, modal interaction, multi-cursor editing, plugin systems). The editor should be practically usable on files ranging from a few lines to several million lines, run cross-platform (Windows and Linux), and be extensible enough that any behavior can be overridden or augmented via OCaml plugins -- similar in spirit to Emacs and its Elisp environment.
 
 ## Solution
 
 Build JEditor as a layered OCaml application following the "Functional Core, Imperative Shell" principle. The text buffer is hidden behind a stable module interface so the initial naive implementation can be replaced with a high-performance data structure (Rope or Piece Tree) without touching any other code. The editor state is modeled as an immutable value transformed by pure `update` functions (MVU pattern). The terminal I/O is the only place with side effects. A plugin system based on OCaml's `Dynlink` allows plugins to register commands, keybindings, hooks, and directly manipulate editor state through a well-defined API.
 
-The editing paradigm follows Emacs conventions: chord-based keybindings, a minibuffer for command input and search, and a command registry that maps string names to functions callable from M-x. The editor ships with an Emacs-compatible default keymap, but every binding is configurable — users and plugins can rebind, shadow, or remove any key at any layer. Multi-cursor support is provided without mouse dependency.
+The editing paradigm follows Emacs conventions: chord-based keybindings, a minibuffer for command input and search, and a command registry that maps string names to functions callable from M-x. The editor ships with an Emacs-compatible default keymap, but every binding is configurable -- users and plugins can rebind, shadow, or remove any key at any layer. Multi-cursor support is provided without mouse dependency.
 
 ## User Stories
 
@@ -74,7 +74,7 @@ The editing paradigm follows Emacs conventions: chord-based keybindings, a minib
 
 ### Module Architecture
 
-**Buffer (deep module — highest priority)**
+**Buffer (deep module -- highest priority)**
 The central abstraction of the entire editor. Exposes a purely functional interface operating on byte offsets. The initial implementation uses a simple `string array` (one entry per line). This implementation is intentionally naive and will be replaced in a later phase with an augmented B-tree (Rope or Piece Tree) without any changes to callers.
 
 The interface is built around byte offsets as the canonical coordinate system. Line/column coordinates are derived from byte offsets, never stored as primary state. This prevents the common pitfall of mixing coordinate systems across modules.
@@ -83,9 +83,9 @@ The interface is built around byte offsets as the canonical coordinate system. L
 Manages a sorted, non-overlapping list of cursors. Each cursor is an absolute byte offset plus an optional anchor offset for selections. Provides a function to apply an edit (offset + delta) to all cursors atomically, handling the cases: cursor before edit point (unchanged), cursor inside deleted range (clamp to edit start), cursor after edit point (shift by delta). Enforces the invariant that the cursor list is always sorted and deduplicated after any mutation.
 
 **Keymap (deep module)**
-Implements a fully configurable layered keybinding system. A keymap is a tree: leaf nodes are command names (strings), internal nodes are prefix keys (e.g. C-x branches to another keymap). Multiple keymaps are active simultaneously and searched in priority order: buffer-local → mode → global. Returns either a command name to dispatch, a pending prefix (waiting for more keys), or unbound.
+Implements a fully configurable layered keybinding system. A keymap is a tree: leaf nodes are command names (strings), internal nodes are prefix keys (e.g. C-x branches to another keymap). Multiple keymaps are active simultaneously and searched in priority order: buffer-local -> mode -> global. Returns either a command name to dispatch, a pending prefix (waiting for more keys), or unbound.
 
-The editor ships a built-in `emacs-default` keymap that covers the standard Emacs chords (C-x C-s, M-x, C-f, etc.). This keymap is a regular value of type `Keymap.t` — it has no special status. Users can replace it entirely, derive a new keymap from it, or shadow individual bindings at any layer. The specific keybindings mentioned in the user stories are all defaults from this built-in map, not hardcoded behavior.
+The editor ships a built-in `emacs-default` keymap that covers the standard Emacs chords (C-x C-s, M-x, C-f, etc.). This keymap is a regular value of type `Keymap.t` -- it has no special status. Users can replace it entirely, derive a new keymap from it, or shadow individual bindings at any layer. The specific keybindings mentioned in the user stories are all defaults from this built-in map, not hardcoded behavior.
 
 **Command (deep module)**
 A registry mapping string names to functions of type `app_state -> app_state`. Commands are registered by name and are callable from M-x or from keybindings. Plugins register commands through this module. The registry is a mutable table (the only globally mutable state in the core, justified because command registration is a startup-time side effect).
@@ -103,7 +103,7 @@ The split-window layout. A frame is a binary tree of splits (horizontal or verti
 A special single-line editor at the bottom of the screen used for M-x input, incremental search, and prompted input (e.g. save-as path). Has its own input loop that temporarily captures key events and returns a result string to the caller.
 
 **App**
-The top-level application state: a Frame, a map of open editors (buffer-id → Editor.t), the Minibuffer state, and the active Keymap stack. The `update : app_state -> action -> app_state` function is the single entry point for all state transitions. This function is pure.
+The top-level application state: a Frame, a map of open editors (buffer-id -> Editor.t), the Minibuffer state, and the active Keymap stack. The `update : app_state -> action -> app_state` function is the single entry point for all state transitions. This function is pure.
 
 **Renderer**
 Computes the terminal output for a given `app_state`. Maintains a previous-frame cell grid and performs diff-based rendering: only emits ANSI sequences for cells that changed between frames. Each cell stores a character plus color/style attributes. The renderer has no knowledge of the buffer internals; it receives pre-computed line strings from the Window/Editor layer.
@@ -138,17 +138,17 @@ A good test for this project tests the observable behavior of a module through i
 
 **Modules to test:**
 
-- **Buffer** — the most critical. Tests cover: insert/delete at start, middle, end; operations that span line boundaries; UTF-8 multi-byte characters (especially CJK); empty buffer edge cases; round-trip `of_string` / `slice`; `line_to_offset` and `offset_to_line_col` accuracy.
+- **Buffer** -- the most critical. Tests cover: insert/delete at start, middle, end; operations that span line boundaries; UTF-8 multi-byte characters (especially CJK); empty buffer edge cases; round-trip `of_string` / `slice`; `line_to_offset` and `offset_to_line_col` accuracy.
 
-- **Cursor** — tests cover: offset adjustment after insert before/after/inside each cursor; merging of colliding cursors after edits; sorted invariant preserved after all operations; selection anchor behavior.
+- **Cursor** -- tests cover: offset adjustment after insert before/after/inside each cursor; merging of colliding cursors after edits; sorted invariant preserved after all operations; selection anchor behavior.
 
-- **Keymap** — tests cover: exact key match returns correct command; prefix key returns Pending then resolves on next key; lower-priority map is shadowed by higher-priority map; C-g always resolves to cancel regardless of pending state.
+- **Keymap** -- tests cover: exact key match returns correct command; prefix key returns Pending then resolves on next key; lower-priority map is shadowed by higher-priority map; C-g always resolves to cancel regardless of pending state.
 
-- **Command** — tests cover: registered command is callable by name; unknown command name returns an error; plugin-registered command is callable after registration.
+- **Command** -- tests cover: registered command is callable by name; unknown command name returns an error; plugin-registered command is callable after registration.
 
-- **Editor** — tests cover: undo returns to previous buffer state; redo after undo restores forward state; undo stack is empty after fresh open; multi-cursor insert produces correct buffer content.
+- **Editor** -- tests cover: undo returns to previous buffer state; redo after undo restores forward state; undo stack is empty after fresh open; multi-cursor insert produces correct buffer content.
 
-- **Frame** — tests cover: split produces two windows; close last window in a split restores single window; focus cycles through windows correctly; split tree is always valid (no empty nodes).
+- **Frame** -- tests cover: split produces two windows; close last window in a split restores single window; focus cycles through windows correctly; split tree is always valid (no empty nodes).
 
 All tests use Alcotest. No test touches stdin, stdout, or the filesystem.
 

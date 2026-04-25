@@ -6,7 +6,7 @@
 
 Implement the plugin system: a `Plugin_api` module type that defines what plugins can do, and a `Plugin_loader` that uses OCaml's `Dynlink` to load `.cmxs` files at startup.
 
-Plugins interact with the editor exclusively through `Plugin_api` typed accessors — they never receive a raw `app_state`. This means the internal state representation can evolve without breaking existing plugins as long as the API accessors are maintained.
+Plugins interact with the editor exclusively through `Plugin_api` typed accessors -- they never receive a raw `app_state`. This means the internal state representation can evolve without breaking existing plugins as long as the API accessors are maintained.
 
 A plugin is an OCaml module that satisfies the `PLUGIN` signature. Its top-level code runs when the `.cmxs` is loaded, at which point it calls `Plugin_api.register` to install its commands, keybindings, and hooks into the running editor.
 

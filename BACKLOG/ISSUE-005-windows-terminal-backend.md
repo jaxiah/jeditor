@@ -12,7 +12,7 @@ Two modules get platform-specific implementations:
 
 **Terminal backend**: writes output. On Windows, calls `SetConsoleMode` on stdout to enable `ENABLE_VIRTUAL_TERMINAL_PROCESSING`. Exposes `hide_cursor`, `show_cursor`, `move_to`, `clear_screen`, `write_cell` (character + SGR color attributes). On Linux, emits the same ANSI sequences directly.
 
-Both backends expose the same module signature — the rest of the codebase never calls any platform-specific function directly.
+Both backends expose the same module signature -- the rest of the codebase never calls any platform-specific function directly.
 
 ## Acceptance criteria
 
@@ -25,7 +25,7 @@ Both backends expose the same module signature — the rest of the codebase neve
 
 ## Blocked by
 
-None — can start immediately (run in parallel with ISSUE-003 and ISSUE-004).
+None -- can start immediately (run in parallel with ISSUE-003 and ISSUE-004).
 
 ## User stories addressed
 
@@ -33,4 +33,4 @@ None — can start immediately (run in parallel with ISSUE-003 and ISSUE-004).
 
 ## Completed
 
-2026-04-25 — All acceptance criteria met. Implemented via TDD. Platform abstraction with conditional compilation added for Win32 and Unix.
+2026-04-25 -- All acceptance criteria met. Implemented via TDD. Platform abstraction with conditional compilation added for Win32 and Unix.

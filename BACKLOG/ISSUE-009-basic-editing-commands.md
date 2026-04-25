@@ -4,13 +4,13 @@
 
 ## What to build
 
-Implement the full set of basic navigation and deletion commands. After this issue the editor supports all single-cursor movement and deletion that an Emacs user would expect in everyday editing — without yet having a configurable keymap (that comes in ISSUE-011).
+Implement the full set of basic navigation and deletion commands. After this issue the editor supports all single-cursor movement and deletion that an Emacs user would expect in everyday editing -- without yet having a configurable keymap (that comes in ISSUE-011).
 
 **Navigation**: character movement (C-f, C-b, C-n, C-p, arrow keys), word movement (M-f, M-b), line boundaries (C-a, C-e), buffer boundaries (M-<, M->), jump to line (M-g g with a numeric prompt).
 
 **Deletion**: forward character (C-d), backward word (M-Backspace), kill to end of line (C-k). Kill ring is a single slot at this stage (no kill ring history needed until ISSUE-013).
 
-**Viewport scrolling**: the view follows the cursor — if the cursor moves off the top or bottom of the visible area, the viewport scrolls to keep it visible (scroll-follows-cursor invariant).
+**Viewport scrolling**: the view follows the cursor -- if the cursor moves off the top or bottom of the visible area, the viewport scrolls to keep it visible (scroll-follows-cursor invariant).
 
 ## Acceptance criteria
 

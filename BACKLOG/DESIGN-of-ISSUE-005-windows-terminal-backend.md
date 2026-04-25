@@ -11,23 +11,23 @@
 
 type t =
   | Char      of Uchar.t
-  (** 无修饰键的可打印字符，如普通字母、数字、标点 *)
+  (** Printable characters without modifiers, such as letters, numbers, and punctuation. *)
 
   | Ctrl      of char
-  (** Control + 任意 ASCII 字符。
-      覆盖 C-a ~ C-z 以及 C-[  C-]  C-\  C-^  C-_ 等符号键。
-      char 的值为对应 ASCII 字符本身（不是控制码），
-      例如 C-a = Ctrl 'a'，C-[ = Ctrl '[' *)
+  (** Control + any ASCII character.
+      Covers C-a ~ C-z as well as C-[ C-] C-\ C-^ C-_ etc.
+      The value of char is the ASCII character itself (not the control code),
+      e.g. C-a = Ctrl 'a', C-[ = Ctrl '['. *)
 
   | Meta      of Uchar.t
-  (** Meta/Alt + 字符，如 M-a、M-x、M-< *)
+  (** Meta/Alt + character, e.g. M-a, M-x, M-< *)
 
   | Ctrl_meta of char
-  (** Control + Meta + ASCII 字符，如 C-M-x *)
+  (** Control + Meta + ASCII character, e.g. C-M-x *)
 
   | Arrow     of [ `Up | `Down | `Left | `Right ]
   | Function  of int
-  (** F1~F12，值为 1~12 *)
+  (** F1~F12, values from 1~12. *)
 
   | Backspace
   | Delete
@@ -40,12 +40,12 @@ type t =
   | End
 
 val pp : Format.formatter -> t -> unit
-(** 输出人类可读的表示，如 "C-x"、"M-a"、"F5"、"<backspace>"。
-    用于状态栏显示未绑定按键信息。 *)
+(** Outputs a human-readable representation, such as "C-x", "M-a", "F5", "<backspace>".
+    Used for displaying unbound key information in the status bar. *)
 
 val of_string : string -> t option
-(** 从配置文件中的字符串解析键名，如 "C-x"、"M-x"、"<f5>"。
-    返回 None 表示无法识别。 *)
+(** Parses a key name from a configuration string, such as "C-x", "M-x", "<f5>".
+    Returns None if unrecognizable. *)
 ```
 
 ---
@@ -61,24 +61,24 @@ type color =
   | Bright of [ `Black | `Red | `Green | `Yellow
               | `Blue  | `Magenta | `Cyan | `White ]
   | Rgb of int * int * int
-  (** 真彩色。终端不支持时降级为最近的 256 色。 *)
+  (** True color. Downgrades to the nearest 256 colors if the terminal does not support it. *)
 
 type t = {
   fg        : color;
   bg        : color;
   bold      : bool;
   italic    : bool;
-  reverse   : bool;  (** 前景/背景互换，用于光标和选中区高亮 *)
+  reverse   : bool;  (** Foreground/background swap, used for cursor and selection highlighting. *)
   underline : bool;
 }
 
 val default : t
-(** fg = Default, bg = Default, 所有修饰均为 false *)
+(** fg = Default, bg = Default, all modifiers are false. *)
 ```
 
 ---
 
-### `Input.S`（module type）
+### `Input.S` (module type)
 
 ```ocaml
 (* lib/terminal/input_intf.ml *)
@@ -87,24 +87,24 @@ module type S = sig
   type t
 
   val create   : unit -> (t, string) result
-  (** 进入 raw mode（Windows: 关闭 ENABLE_PROCESSED_INPUT，
-      开启 ENABLE_VIRTUAL_TERMINAL_INPUT；
-      Unix: tcsetattr TCSANOW 设置 raw flags）。
-      失败时返回 Error 原因字符串，不抛出异常。 *)
+  (** Enter raw mode (Windows: disable ENABLE_PROCESSED_INPUT,
+      enable ENABLE_VIRTUAL_TERMINAL_INPUT;
+      Unix: tcsetattr TCSANOW sets raw flags).
+      Returns an Error with a reason string on failure, does not throw exceptions. *)
 
   val next_key : t -> Key.t option
-  (** 阻塞读取下一个完整按键事件。
-      处理多字节 ESC 序列（方向键、Fn 键、Meta via ESC prefix）。
-      返回 None 表示 EOF 或不可恢复错误。 *)
+  (** Blocks and reads the next full key event.
+      Handles multi-byte ESC sequences (arrow keys, Fn keys, Meta via ESC prefix).
+      Returns None for EOF or unrecoverable errors. *)
 
   val close    : t -> unit
-  (** 恢复终端原始模式。多次调用安全（幂等）。 *)
+  (** Restore terminal to original mode. Safe to call multiple times (idempotent). *)
 end
 ```
 
 ---
 
-### `Terminal.S`（module type）
+### `Terminal.S` (module type)
 
 ```ocaml
 (* lib/terminal/terminal_intf.ml *)
@@ -113,47 +113,47 @@ module type S = sig
   type t
 
   val create      : unit -> (t, string) result
-  (** 初始化输出端：
-      Windows: SetConsoleMode 开启 ENABLE_VIRTUAL_TERMINAL_PROCESSING；
-      Unix: 直接写 ANSI 序列，无需额外初始化。
-      内部维护输出缓冲区，所有写操作先写入缓冲，flush 时一次性输出。 *)
+  (** Initializes the output:
+      Windows: SetConsoleMode enables ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+      Unix: Writes ANSI sequences directly, no extra initialization needed.
+      Maintains an internal output buffer; all write operations are buffered and output at once when flushed. *)
 
   val size        : t -> int * int
-  (** 返回 (cols, rows)，当前终端物理尺寸。
-      Windows: GetConsoleScreenBufferInfo；
-      Unix: ioctl TIOCGWINSZ。 *)
+  (** Returns (cols, rows), the current physical dimensions of the terminal.
+      Windows: GetConsoleScreenBufferInfo;
+      Unix: ioctl TIOCGWINSZ. *)
 
   val move_to     : t -> row:int -> col:int -> unit
-  (** 移动光标到 (row, col)，均从 0 开始计数。 *)
+  (** Moves the cursor to (row, col), both 0-indexed. *)
 
   val hide_cursor : t -> unit
   val show_cursor : t -> unit
 
   val write_char  : t -> Uchar.t -> Attr.t -> unit
-  (** 在当前光标位置写入一个 Unicode 字符并应用样式。
-      CJK 等宽字符（display width = 2）占两列，调用方负责列计数。 *)
+  (** Writes a Unicode character at the current cursor position with styles.
+      CJK wide characters (display width = 2) take up two columns; the caller is responsible for column counting. *)
 
   val write_string : t -> string -> Attr.t -> unit
-  (** 写入 UTF-8 字符串。字符串必须是合法 UTF-8，否则行为未定义。
-      等价于对每个 Uchar 调用 write_char，但实现上更高效。 *)
+  (** Writes a UTF-8 string. The string must be valid UTF-8, otherwise behavior is undefined.
+      Equivalent to calling write_char for each Uchar, but more efficient in implementation. *)
 
   val clear_line  : t -> unit
-  (** 从当前光标位置清除到行尾（ESC[K）。 *)
+  (** Clears from the current cursor position to the end of the line (ESC[K). *)
 
   val clear_screen : t -> unit
-  (** 清除整个屏幕并将光标移到左上角。用于强制全量重绘。 *)
+  (** Clears the entire screen and moves the cursor to the top-left corner. Used for forced full redraws. *)
 
   val flush       : t -> unit
-  (** 将内部缓冲区一次性写入 stdout。每帧调用一次。 *)
+  (** Flushes the internal buffer to stdout. Called once per frame. *)
 
   val close       : t -> unit
-  (** 恢复终端状态（显示光标、重置样式）。多次调用安全。 *)
+  (** Restores terminal state (shows cursor, resets styles). Safe to call multiple times. *)
 end
 ```
 
 ---
 
-### 平台分发（编译期）
+### Platform Dispatch (Compile-time)
 
 ```
 lib/terminal/
@@ -161,12 +161,12 @@ lib/terminal/
 ├── attr.ml
 ├── input_intf.ml
 ├── terminal_intf.ml
-├── platform_unix.ml      (* 实现 Input.S + Terminal.S，依赖 Unix 模块 *)
-├── platform_win32.ml     (* 实现 Input.S + Terminal.S，通过 C stub 调用 Win32 API *)
+├── platform_unix.ml      (* Implement Input.S + Terminal.S, depends on Unix module *)
+├── platform_win32.ml     (* Implement Input.S + Terminal.S, calls Win32 API via C stubs *)
 └── dune
 ```
 
-`dune` 文件中用 `select` 在编译期选择平台实现：
+`dune` uses `select` to choose the platform implementation at compile-time:
 
 ```
 (select platform.ml from
@@ -174,42 +174,42 @@ lib/terminal/
  (-> platform_unix.ml))
 ```
 
-`platform.ml` 不存在于源码中，由 dune 在构建时生成为所选平台文件的副本。Win32 C stub 代码仅在 Windows 下编译，Linux 构建完全不包含 Win32 代码。
+`platform.ml` does not exist in the source code; it is generated by dune as a copy of the selected platform file at build time. Win32 C stub code is only compiled on Windows; Linux builds do not include any Win32 code.
 
 ---
 
-### 验证用 smoke test 程序
+### Smoke test program for verification
 
 ```
 bin/term_test/
 ├── dune    (* (executable (name term_test) (libraries jeditor_terminal)) *)
-└── main.ml (* 绘制彩色网格 + 响应按键，验证两个后端均正常工作 *)
+└── main.ml (* Draws a colored grid + responds to keys, verifies that both backends work correctly *)
 ```
 
-此程序不进入最终发行版，仅用于手动验证 ISSUE-005 的验收标准。
+This program is not included in the final release and is only used for manual verification of ISSUE-005 acceptance criteria.
 
 ## Module Boundaries
 
-| 模块 | 对外暴露 | 隐藏 |
+| Module | Exposed | Hidden |
 |------|---------|------|
-| `Key` | `Key.t`、`pp`、`of_string` | ESC 序列解析表、状态机 |
-| `Attr` | `Attr.t`、`Attr.default`、`color` | — |
-| `Input` | `Input.S` module type，`Input.create/next_key/close` | platform_unix/win32 内部实现 |
-| `Terminal` | `Terminal.S` module type，`Terminal.create/...` | 输出缓冲区、ANSI 序列拼接、Win32 API 调用 |
+| `Key` | `Key.t`, `pp`, `of_string` | ESC sequence parsing table, state machine |
+| `Attr` | `Attr.t`, `Attr.default`, `color` | -- |
+| `Input` | `Input.S` module type, `Input.create/next_key/close` | platform_unix/win32 internal implementation |
+| `Terminal` | `Terminal.S` module type, `Terminal.create/...` | Output buffer, ANSI sequence concatenation, Win32 API calls |
 
-`jeditor_terminal` 库对外只暴露这四个模块。`platform_unix.ml` 和 `platform_win32.ml` 不出现在库的公开接口中。
+The `jeditor_terminal` library only exposes these four modules. `platform_unix.ml` and `platform_win32.ml` do not appear in the library's public interface.
 
 ## Deep Module Opportunities
 
-**`Input` 的 ESC 序列状态机** 是本 issue 最深的复杂度来源。终端发送的原始字节序列（如 `\x1b[A` 表示上箭头，`\x1b[1;5C` 表示 Ctrl+右箭头）需要一个带超时的状态机来区分"单独的 Escape 键"和"ESC 序列的开头"。这个状态机完全隐藏在 `next_key` 后面，调用方永远只看到 `Key.t`。
+**`Input`'s ESC sequence state machine** is the deepest source of complexity in this issue. The raw byte sequences sent by the terminal (e.g., `\x1b[A` for up arrow, `\x1b[1;5C` for Ctrl+Right arrow) require a state machine with a timeout to distinguish between a "standalone Escape key" and the "start of an ESC sequence." This state machine is completely hidden behind `next_key`, and callers only ever see `Key.t`.
 
 ## Testing Priorities
 
-1. **`Key.of_string` / `Key.pp` 往返测试** — 纯函数，无需终端，最先写
-2. **`Input` 序列解析** — 构造原始字节序列，验证 `next_key` 输出正确的 `Key.t`（可用管道模拟 stdin，无需真实终端）
-3. **`Terminal` 输出缓冲** — 验证 `flush` 前无字节写入 stdout，`flush` 后字节符合预期 ANSI 序列
-4. **`term_test` 手动验证** — 在真实 Windows Terminal 中运行，目测彩色网格和按键响应
+1. **`Key.of_string` / `Key.pp` round-trip tests** -- Pure functions, no terminal required, written first.
+2. **`Input` sequence parsing** -- Construct raw byte sequences, verify that `next_key` outputs the correct `Key.t` (can be simulated with a pipe for stdin, no real terminal needed).
+3. **`Terminal` output buffering** -- Verify that no bytes are written to stdout before `flush`, and that the bytes after `flush` match the expected ANSI sequences.
+4. **`term_test` manual verification** -- Run in a real Windows Terminal, visually inspect the colored grid and key response.
 
 ## Open Questions
 
-- Win32 的 `ReadConsoleInput` 返回鼠标事件和窗口大小事件，需要在 `next_key` 中静默丢弃鼠标事件，将窗口大小事件转为内部通知（或暂时丢弃，等 ISSUE-008 再处理）。此行为在实现时确认。
+- Win32's `ReadConsoleInput` returns mouse events and window size events; mouse events need to be silently discarded in `next_key`, and window size events converted to internal notifications (or temporarily discarded, to be handled in ISSUE-008). This behavior will be confirmed during implementation.
