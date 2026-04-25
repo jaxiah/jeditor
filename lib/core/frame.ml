@@ -48,6 +48,17 @@ let rec map_focused focused f = function
 let update_focused f t =
   { t with root = map_focused t.focused f t.root }
 
+let set_focused_buffer ~buffer_id t =
+  update_focused (fun w -> { w with buffer_id; scroll_top_line = 0 }) t
+
+let replace_buffer ~old_id ~new_id t =
+  let rec replace = function
+    | Leaf w when w.buffer_id = old_id -> Leaf { w with buffer_id = new_id; scroll_top_line = 0 }
+    | Leaf w -> Leaf w
+    | Split (o, r, a, b) -> Split (o, r, replace a, replace b)
+  in
+  { t with root = replace t.root }
+
 let split_focused orientation t =
   let new_id = t.next_id in
   let rec split = function

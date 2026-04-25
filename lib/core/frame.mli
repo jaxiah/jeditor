@@ -27,6 +27,8 @@ val single : buffer_id:int -> t
 val leaves : t -> window list
 val focused_window : t -> window
 val update_focused : (window -> window) -> t -> t
+val set_focused_buffer : buffer_id:int -> t -> t
+val replace_buffer : old_id:int -> new_id:int -> t -> t
 val split_focused : orientation -> t -> t
 val focus_next : t -> t
 val close_focused : t -> t

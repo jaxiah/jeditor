@@ -11,6 +11,9 @@ type mode =
   | PromptReplaceSearch
   | PromptReplaceWith
   | PromptReplaceConfirm
+  | PromptSwitchBuffer
+  | PromptKillBuffer
+  | ConfirmKillBuffer
 
 type move_target =
   | CharF | CharB | LineN | LineP
@@ -38,6 +41,8 @@ type action =
   | QueryReplaceYes | QueryReplaceNo | QueryReplaceAll | QueryReplaceQuit
   | SplitWindowHorizontal | SplitWindowVertical | FocusNextWindow
   | CloseWindow | CloseOtherWindows
+  | StartSwitchBuffer | SwitchBuffer of string | ShowBufferList
+  | StartKillBuffer | KillBuffer of string | KillBufferConfirmed
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo | Redo
@@ -46,6 +51,17 @@ type action =
 type snapshot = {
   buffer : Buffer.t;
   cursor : Cursor.t;
+}
+
+type buffer_entry = {
+  id : int;
+  name : string;
+  file_path : string option;
+  buffer : Buffer.t;
+  cursor : Cursor.t;
+  modified : bool;
+  undo_stack : snapshot list;
+  redo_stack : snapshot list;
 }
 
 type handler = app_state -> app_state * cmd
@@ -79,10 +95,16 @@ and app_state = {
   replace_query   : string;
   replace_with    : string;
   frame           : Frame.t;
+  buffers         : buffer_entry list;
+  current_buffer_id : int;
+  next_buffer_id  : int;
 }
 
 val initial_state : app_state
 val state_with_file : path:string -> content:string -> app_state
+val current_buffer : app_state -> buffer_entry
+val buffer_by_id : int -> app_state -> buffer_entry option
+val open_file : path:string -> content:string -> app_state -> app_state
 val update : app_state -> action -> app_state * cmd
 val handle_key : app_state -> Key.t -> app_state * cmd
 (** Dispatch a single key event. In prompt modes uses hardcoded per-mode

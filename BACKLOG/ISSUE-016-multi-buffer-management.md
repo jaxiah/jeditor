@@ -8,13 +8,13 @@ Extend the `App` state to maintain a map of open buffers (buffer-id -> `Editor.t
 
 ## Acceptance criteria
 
-- [ ] C-x b prompts (via minibuffer) for a buffer name and switches the current window to display that buffer; Tab-completion works over open buffer names
-- [ ] C-x C-b opens a buffer list window showing all open buffers, their filenames, and modification state
-- [ ] C-x k prompts for a buffer to kill; if the buffer has unsaved changes, asks for confirmation
-- [ ] Opening a file that is already loaded switches to the existing buffer rather than loading a duplicate
-- [ ] Each buffer has its own independent undo history
-- [ ] Killing a buffer that is displayed in multiple windows replaces it with the next available buffer in all those windows
-- [ ] A buffer created with `jeditor` and no filename is named `*scratch*` by default
+- [x] C-x b prompts (via minibuffer) for a buffer name and switches the current window to display that buffer; Tab-completion works over open buffer names
+- [x] C-x C-b opens a buffer list window showing all open buffers, their filenames, and modification state
+- [x] C-x k prompts for a buffer to kill; if the buffer has unsaved changes, asks for confirmation
+- [x] Opening a file that is already loaded switches to the existing buffer rather than loading a duplicate
+- [x] Each buffer has its own independent undo history
+- [x] Killing a buffer that is displayed in multiple windows replaces it with the next available buffer in all those windows
+- [x] A buffer created with `jeditor` and no filename is named `*scratch*` by default
 
 ## Blocked by
 
@@ -26,3 +26,7 @@ Extend the `App` state to maintain a map of open buffers (buffer-id -> `Editor.t
 - User story 37 (C-x b switch buffer)
 - User story 38 (C-x C-b list buffers)
 - User story 39 (C-x k kill buffer)
+
+## Completed
+
+2026-04-26 — all acceptance criteria met. Implemented via TDD.

@@ -11,6 +11,9 @@ type mode =
   | PromptReplaceSearch
   | PromptReplaceWith
   | PromptReplaceConfirm
+  | PromptSwitchBuffer
+  | PromptKillBuffer
+  | ConfirmKillBuffer
 
 type move_target =
   | CharF | CharB | LineN | LineP
@@ -65,6 +68,12 @@ type action =
   | FocusNextWindow
   | CloseWindow
   | CloseOtherWindows
+  | StartSwitchBuffer
+  | SwitchBuffer of string
+  | ShowBufferList
+  | StartKillBuffer
+  | KillBuffer of string
+  | KillBufferConfirmed
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo
@@ -75,6 +84,17 @@ type action =
 type snapshot = {
   buffer : Buffer.t;
   cursor : Cursor.t;
+}
+
+type buffer_entry = {
+  id : int;
+  name : string;
+  file_path : string option;
+  buffer : Buffer.t;
+  cursor : Cursor.t;
+  modified : bool;
+  undo_stack : snapshot list;
+  redo_stack : snapshot list;
 }
 
 type handler = app_state -> app_state * cmd
@@ -108,7 +128,148 @@ and app_state = {
   replace_query   : string;
   replace_with    : string;
   frame           : Frame.t;
+  buffers         : buffer_entry list;
+  current_buffer_id : int;
+  next_buffer_id  : int;
 }
+
+let basename path =
+  match List.rev (String.split_on_char '/' (String.map (fun c -> if c = '\\' then '/' else c) path)) with
+  | name :: _ when name <> "" -> name
+  | _ -> path
+
+let snapshot_current_buffer st =
+  { id = st.current_buffer_id;
+    name = "";
+    file_path = st.file_path;
+    buffer = st.buffer;
+    cursor = st.cursor;
+    modified = st.modified;
+    undo_stack = st.undo_stack;
+    redo_stack = st.redo_stack }
+
+let save_current_buffer st =
+  let current = snapshot_current_buffer st in
+  let buffers =
+    List.map
+      (fun b -> if b.id = st.current_buffer_id then { current with name = b.name } else b)
+      st.buffers
+  in
+  { st with buffers }
+
+let buffer_by_id id st =
+  List.find_opt (fun b -> b.id = id) st.buffers
+
+let current_buffer st =
+  match buffer_by_id st.current_buffer_id st with
+  | Some b -> b
+  | None -> snapshot_current_buffer st
+
+let activate_buffer_entry (entry : buffer_entry) st =
+  { st with
+    current_buffer_id = entry.id;
+    buffer = entry.buffer;
+    cursor = entry.cursor;
+    file_path = entry.file_path;
+    modified = entry.modified;
+    undo_stack = entry.undo_stack;
+    redo_stack = entry.redo_stack;
+    mark = None;
+    search_matches = [];
+    search_current = None;
+    search_origin = None;
+    scroll_top_line = (Frame.focused_window st.frame).scroll_top_line }
+
+let activate_buffer_id id st =
+  match buffer_by_id id st with
+  | Some entry -> activate_buffer_entry entry st
+  | None -> st
+
+let open_file ~path ~content st =
+  let st = save_current_buffer st in
+  match List.find_opt (fun (b : buffer_entry) -> b.file_path = Some path) st.buffers with
+  | Some entry ->
+      let frame = Frame.set_focused_buffer ~buffer_id:entry.id st.frame in
+      activate_buffer_entry entry { st with frame }
+  | None ->
+      let id = st.next_buffer_id in
+      let entry =
+        { id; name = basename path; file_path = Some path;
+          buffer = Buffer.of_string content; cursor = Cursor.create 0;
+          modified = false; undo_stack = []; redo_stack = [] }
+      in
+      let frame = Frame.set_focused_buffer ~buffer_id:id st.frame in
+      activate_buffer_entry entry
+        { st with buffers = st.buffers @ [entry]; next_buffer_id = id + 1; frame }
+
+let buffer_names st =
+  st.buffers |> List.map (fun (b : buffer_entry) -> b.name) |> List.sort_uniq String.compare
+
+let complete_buffer_name ~prefix st =
+  buffer_names st |> List.filter (fun name -> String.starts_with ~prefix name)
+
+let switch_to_buffer_name name st =
+  let st = save_current_buffer st in
+  match List.find_opt (fun (b : buffer_entry) -> b.name = name) st.buffers with
+  | None -> { st with message = "No buffer: " ^ name; mode = Normal; minibuf = "" }
+  | Some entry ->
+      let frame = Frame.set_focused_buffer ~buffer_id:entry.id st.frame in
+      activate_buffer_entry entry { st with frame; mode = Normal; minibuf = "" }
+
+let buffer_list_text buffers =
+  let line (b : buffer_entry) =
+    let modified = if b.modified then "*" else " " in
+    let path = Option.value ~default:"" b.file_path in
+    Printf.sprintf "%s %-20s %s" modified b.name path
+  in
+  "Modified Name                 File\n"
+  ^ String.concat "\n" (List.map line buffers)
+  ^ "\n"
+
+let show_buffer_list st =
+  let st = save_current_buffer st in
+  let name = "*Buffer List*" in
+  let content = buffer_list_text st.buffers in
+  let existing = List.find_opt (fun (b : buffer_entry) -> b.name = name) st.buffers in
+  let entry, buffers, next_buffer_id =
+    match existing with
+    | Some b ->
+        let entry = { b with buffer = Buffer.of_string content; cursor = Cursor.create 0; modified = false } in
+        entry,
+        List.map (fun (x : buffer_entry) -> if x.id = b.id then entry else x) st.buffers,
+        st.next_buffer_id
+    | None ->
+        let entry =
+          { id = st.next_buffer_id; name; file_path = None; buffer = Buffer.of_string content;
+            cursor = Cursor.create 0; modified = false; undo_stack = []; redo_stack = [] }
+        in
+        entry, st.buffers @ [entry], st.next_buffer_id + 1
+  in
+  let frame = Frame.set_focused_buffer ~buffer_id:entry.id st.frame in
+  activate_buffer_entry entry { st with buffers; next_buffer_id; frame; mode = Normal; minibuf = "" }
+
+let ensure_replacement_buffer killed_id st =
+  match List.find_opt (fun (b : buffer_entry) -> b.id <> killed_id) st.buffers with
+  | Some b -> b, st
+  | None ->
+      let entry =
+        { id = st.next_buffer_id; name = "*scratch*"; file_path = None; buffer = Buffer.empty;
+          cursor = Cursor.create 0; modified = false; undo_stack = []; redo_stack = [] }
+      in
+      entry, { st with buffers = [entry]; next_buffer_id = entry.id + 1 }
+
+let kill_buffer_name ?(force=false) name st =
+  let st = save_current_buffer st in
+  match List.find_opt (fun (b : buffer_entry) -> b.name = name) st.buffers with
+  | None -> { st with mode = Normal; minibuf = ""; message = "No buffer: " ^ name }
+  | Some target when target.modified && not force ->
+      { st with mode = ConfirmKillBuffer; minibuf = target.name }
+  | Some target ->
+      let replacement, st = ensure_replacement_buffer target.id st in
+      let buffers = List.filter (fun (b : buffer_entry) -> b.id <> target.id) st.buffers in
+      let frame = Frame.replace_buffer ~old_id:target.id ~new_id:replacement.id st.frame in
+      let st = { st with buffers; frame; mode = Normal; minibuf = "" } in
+      if st.current_buffer_id = target.id then activate_buffer_entry replacement st else st
 
 let prompt_action_of_key mode key =
   match mode with
@@ -170,6 +331,27 @@ let prompt_action_of_key mode key =
       | Key.Char c when Uchar.to_int c = Char.code 'q' -> QueryReplaceQuit
       | Key.Ctrl 'g'             -> QueryReplaceQuit
       | _                        -> Ignore)
+  | PromptSwitchBuffer -> (match key with
+      | Key.Enter | Key.Ctrl 'm' -> MinibufConfirm
+      | Key.Backspace
+      | Key.Delete               -> MinibufBackspace
+      | Key.Ctrl 'g'             -> MinibufCancel
+      | Key.Tab | Key.Ctrl 'i'   -> MinibufTab
+      | Key.Char c               -> MinibufAppend c
+      | _                        -> Ignore)
+  | PromptKillBuffer -> (match key with
+      | Key.Enter | Key.Ctrl 'm' -> MinibufConfirm
+      | Key.Backspace
+      | Key.Delete               -> MinibufBackspace
+      | Key.Ctrl 'g'             -> MinibufCancel
+      | Key.Tab | Key.Ctrl 'i'   -> MinibufTab
+      | Key.Char c               -> MinibufAppend c
+      | _                        -> Ignore)
+  | ConfirmKillBuffer -> (match key with
+      | Key.Char c when Uchar.to_int c = Char.code 'y' || Uchar.to_int c = Char.code 'Y' ->
+          KillBufferConfirmed
+      | Key.Ctrl 'g' -> MinibufCancel
+      | _ -> MinibufCancel)
   | Normal       -> Ignore  (* not a prompt mode *)
 
 let command_of_name name =
@@ -210,6 +392,9 @@ let command_of_name name =
   | "other-window"         -> FocusNextWindow
   | "delete-window"        -> CloseWindow
   | "delete-other-windows" -> CloseOtherWindows
+  | "switch-to-buffer"     -> StartSwitchBuffer
+  | "list-buffers"         -> ShowBufferList
+  | "kill-buffer"          -> StartKillBuffer
   | "cancel"               -> Cancel
   | _                      -> Ignore
 
@@ -372,17 +557,35 @@ let rec update state action =
       let frame = Frame.split_focused Frame.Vertical st.frame in
       { st with frame }, Noop
   | FocusNextWindow ->
+      let st = save_current_buffer st in
       let frame = Frame.focus_next st.frame in
       let scroll_top_line = (Frame.focused_window frame).scroll_top_line in
-      { st with frame; scroll_top_line }, Noop
+      let st = { st with frame; scroll_top_line } in
+      activate_buffer_id (Frame.focused_window frame).buffer_id st, Noop
   | CloseWindow ->
+      let st = save_current_buffer st in
       let frame = Frame.close_focused st.frame in
       let scroll_top_line = (Frame.focused_window frame).scroll_top_line in
-      { st with frame; scroll_top_line }, Noop
+      let st = { st with frame; scroll_top_line } in
+      activate_buffer_id (Frame.focused_window frame).buffer_id st, Noop
   | CloseOtherWindows ->
+      let st = save_current_buffer st in
       let frame = Frame.close_others st.frame in
       let scroll_top_line = (Frame.focused_window frame).scroll_top_line in
-      { st with frame; scroll_top_line }, Noop
+      let st = { st with frame; scroll_top_line } in
+      activate_buffer_id (Frame.focused_window frame).buffer_id st, Noop
+  | StartSwitchBuffer ->
+      clear_kill_sequence { st with mode = PromptSwitchBuffer; minibuf = "" }, Noop
+  | SwitchBuffer name ->
+      switch_to_buffer_name name st, Noop
+  | ShowBufferList ->
+      show_buffer_list st, Noop
+  | StartKillBuffer ->
+      clear_kill_sequence { st with mode = PromptKillBuffer; minibuf = (current_buffer st).name }, Noop
+  | KillBuffer name ->
+      kill_buffer_name name st, Noop
+  | KillBufferConfirmed ->
+      kill_buffer_name ~force:true st.minibuf { st with mode = Normal }, Noop
   | Undo ->
       (match st.undo_stack with
        | [] -> st, Noop
@@ -617,6 +820,10 @@ let rec update state action =
            (match Registry.lookup name st'.registry with
             | None         -> { st' with message = "No command: " ^ name }, Noop
             | Some handler -> handler st')
+       | PromptSwitchBuffer ->
+           switch_to_buffer_name (String.trim st.minibuf) st, Noop
+       | PromptKillBuffer ->
+           fst (update st (KillBuffer (String.trim st.minibuf))), Noop
        | _ ->
            let path = st.minibuf in
            let content = Buffer.to_string st.buffer in
@@ -627,6 +834,12 @@ let rec update state action =
       (match st.mode with
        | PromptMx ->
            let matches = Registry.complete ~prefix:st.minibuf st.registry in
+           let lcp = longest_common_prefix matches in
+           if String.length lcp > String.length st.minibuf
+           then { st with minibuf = lcp }, Noop
+           else st, Noop
+       | PromptSwitchBuffer | PromptKillBuffer ->
+           let matches = complete_buffer_name ~prefix:st.minibuf st in
            let lcp = longest_common_prefix matches in
            if String.length lcp > String.length st.minibuf
            then { st with minibuf = lcp }, Noop
@@ -732,7 +945,10 @@ let rec update state action =
     | CloseWindow | CloseOtherWindows -> true
     | _ -> false
   in
-  (if should_preserve_window_scroll then new_st else ensure_cursor_visible new_st), cmd
+  let new_st =
+    if should_preserve_window_scroll then new_st else ensure_cursor_visible new_st
+  in
+  save_current_buffer new_st, cmd
 
 (** Registry pre-loaded with all built-in commands. *)
 let default_registry =
@@ -746,7 +962,8 @@ let default_registry =
     "set-mark-command"; "kill-region"; "copy-region"; "yank";
     "isearch-forward"; "isearch-backward"; "query-replace";
     "split-window-below"; "split-window-right"; "other-window";
-    "delete-window"; "delete-other-windows";
+    "delete-window"; "delete-other-windows"; "switch-to-buffer";
+    "list-buffers"; "kill-buffer";
   ] in
   List.fold_left (fun r name ->
     let action = command_of_name name in
@@ -782,18 +999,31 @@ let initial_state = {
   replace_query = "";
   replace_with = "";
   frame = Frame.single ~buffer_id:0;
+  buffers = [
+    { id = 0; name = "*scratch*"; file_path = None; buffer = Buffer.empty;
+      cursor = Cursor.create 0; modified = false; undo_stack = []; redo_stack = [] }
+  ];
+  current_buffer_id = 0;
+  next_buffer_id = 1;
 }
 
-let state_with_file ~path ~content = {
-  initial_state with
-  buffer    = Buffer.of_string content;
-  file_path = Some path;
-}
+let state_with_file ~path ~content =
+  let buffer = Buffer.of_string content in
+  let entry =
+    { id = 0; name = basename path; file_path = Some path; buffer;
+      cursor = Cursor.create 0; modified = false; undo_stack = []; redo_stack = [] }
+  in
+  { initial_state with
+    buffer;
+    file_path = Some path;
+    buffers = [entry];
+    frame = Frame.single ~buffer_id:0 }
 
 let handle_key state key =
   match state.mode with
   | PromptSaveAs | ConfirmQuit | PromptGotoLine | PromptMx
-  | PromptSearch | PromptReplaceSearch | PromptReplaceWith | PromptReplaceConfirm ->
+  | PromptSearch | PromptReplaceSearch | PromptReplaceWith | PromptReplaceConfirm
+  | PromptSwitchBuffer | PromptKillBuffer | ConfirmKillBuffer ->
       let action = prompt_action_of_key state.mode key in
       update state action
   | Normal ->

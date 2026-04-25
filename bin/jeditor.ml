@@ -80,6 +80,12 @@ let render term state =
     | App.PromptReplaceConfirm ->
         "Replace " ^ state.App.replace_query ^ " with " ^ state.App.replace_with
         ^ "? (y/n/!/q)"
+    | App.PromptSwitchBuffer ->
+        "Switch to buffer: " ^ state.App.minibuf ^ "_"
+    | App.PromptKillBuffer ->
+        "Kill buffer: " ^ state.App.minibuf ^ "_"
+    | App.ConfirmKillBuffer ->
+        "Buffer modified - kill anyway? (y/n)"
     | _ ->
         if state.App.pending_keys <> [] then
           (* show accumulated prefix hint, e.g. "C-x ..." *)
@@ -109,6 +115,12 @@ let render term state =
   let focused_id = state.App.frame.Frame.focused in
   let render_window (window, rect) =
     if rect.Frame.width > 0 && rect.height > 0 then begin
+      let entry = Option.value ~default:(App.current_buffer state) (App.buffer_by_id window.Frame.buffer_id state) in
+      let buffer = entry.App.buffer in
+      let cursor = entry.App.cursor in
+      let file_path = entry.App.file_path in
+      let modified = entry.App.modified in
+      let line_count = Buffer.line_count buffer in
       let gutter = View.gutter_width ~line_count in
       let text_cols = max 0 (rect.width - gutter) in
       let text_rows = max 0 (rect.height - 1) in
@@ -119,22 +131,22 @@ let render term state =
         if buffer_line_idx < line_count then begin
           let gtext = Printf.sprintf "%*d " (gutter - 1) (buffer_line_idx + 1) in
           Terminal.write_string term gtext Attr.default;
-          let line_start = Buffer.line_to_offset ~line:buffer_line_idx state.App.buffer in
+          let line_start = Buffer.line_to_offset ~line:buffer_line_idx buffer in
           let next_line_start =
             if buffer_line_idx + 1 < line_count
-            then Buffer.line_to_offset ~line:(buffer_line_idx + 1) state.App.buffer
-            else Buffer.length state.App.buffer
+            then Buffer.line_to_offset ~line:(buffer_line_idx + 1) buffer
+            else Buffer.length buffer
           in
           let line_len = next_line_start - line_start in
           let display_len =
             if line_len > 0 then
               let last_char =
-                Buffer.slice ~start:(next_line_start - 1) ~length:1 state.App.buffer
+                Buffer.slice ~start:(next_line_start - 1) ~length:1 buffer
               in
               if last_char = "\n" then line_len - 1 else line_len
             else 0
           in
-          let full_line = Buffer.slice ~start:line_start ~length:display_len state.App.buffer in
+          let full_line = Buffer.slice ~start:line_start ~length:display_len buffer in
           let truncated =
             if String.length full_line > text_cols then String.sub full_line 0 text_cols
             else full_line
@@ -149,10 +161,14 @@ let render term state =
       let status =
         if window.id = focused_id then prompt_status byte_line dcol rect.width
         else
+          let (line, byte_col) = Buffer.offset_to_line_col ~offset:(Cursor.primary cursor).head buffer in
+          let line_start = Buffer.line_to_offset ~line buffer in
+          let line_to_cursor = Buffer.slice ~start:line_start ~length:byte_col buffer in
+          let dcol = Wcwidth.display_col_of_byte_col line_to_cursor ~byte_col in
           View.status_text
-            ~file_path:state.App.file_path
-            ~modified:state.App.modified
-            ~cursor_line:byte_line
+            ~file_path
+            ~modified
+            ~cursor_line:line
             ~cursor_display_col:dcol
             ~line_count
             ~cols:rect.width

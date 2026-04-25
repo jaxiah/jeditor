@@ -639,6 +639,85 @@ let test_window_commands_in_registry () =
   ) [ "split-window-below"; "split-window-right"; "other-window";
       "delete-window"; "delete-other-windows" ]
 
+(* ── ISSUE-016: multi-buffer management ────────────────────────────── *)
+
+let test_initial_scratch_buffer () =
+  Alcotest.(check string) "default buffer name" "*scratch*" (App.current_buffer initial_state).name;
+  Alcotest.(check int) "single open buffer" 1 (List.length initial_state.buffers)
+
+let test_open_file_reuses_existing_buffer () =
+  let st = initial_state |> App.open_file ~path:"a.txt" ~content:"one" in
+  let st = upd st (Move BufEnd) in
+  let st = upd st (Insert (Uchar.of_char '!')) in
+  let st = App.open_file ~path:"b.txt" ~content:"two" st in
+  let st = App.open_file ~path:"a.txt" ~content:"ignored" st in
+  Alcotest.(check int) "no duplicate" 3 (List.length st.buffers);
+  Alcotest.(check string) "existing content kept" "one!"
+    (Buffer.to_string st.buffer)
+
+let test_switch_buffer_prompt_and_completion () =
+  let st = initial_state |> App.open_file ~path:"alpha.txt" ~content:"a" in
+  let st = App.open_file ~path:"beta.txt" ~content:"b" st in
+  let st = fst (handle_key st (Key.Ctrl 'x')) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'b'))) in
+  Alcotest.(check bool) "switch prompt" true (st.mode = PromptSwitchBuffer);
+  let st = type_keys "al" st in
+  let st = fst (handle_key st Key.Tab) in
+  Alcotest.(check string) "completed alpha" "alpha.txt" st.minibuf;
+  let st = fst (handle_key st Key.Enter) in
+  Alcotest.(check string) "switched content" "a" (Buffer.to_string st.buffer);
+  Alcotest.(check string) "current name" "alpha.txt" (App.current_buffer st).name
+
+let test_buffer_list_contains_file_and_modified_state () =
+  let st = initial_state |> App.open_file ~path:"alpha.txt" ~content:"a" in
+  let st = upd st (Move BufEnd) |> fun st -> upd st (Insert (Uchar.of_char '!')) in
+  let st = App.open_file ~path:"beta.txt" ~content:"b" st in
+  let st = upd st ShowBufferList in
+  let text = Buffer.to_string st.buffer in
+  Alcotest.(check string) "current list buffer" "*Buffer List*" (App.current_buffer st).name;
+  Alcotest.(check bool) "lists alpha" true (String.contains text '*');
+  Alcotest.(check bool) "lists path" true (String.contains text 'a')
+
+let test_kill_dirty_buffer_requires_confirmation_and_replaces_windows () =
+  let st = initial_state |> App.open_file ~path:"alpha.txt" ~content:"a" in
+  let alpha_id = st.current_buffer_id in
+  let st = upd st (Move BufEnd) |> fun st -> upd st (Insert (Uchar.of_char '!')) in
+  let st = App.open_file ~path:"beta.txt" ~content:"b" st in
+  let beta_id = st.current_buffer_id in
+  let st = { st with frame = Frame.replace_buffer ~old_id:beta_id ~new_id:alpha_id st.frame } in
+  let st = upd st (KillBuffer "alpha.txt") in
+  Alcotest.(check bool) "confirmation mode" true (st.mode = ConfirmKillBuffer);
+  let st = upd st KillBufferConfirmed in
+  Alcotest.(check bool) "alpha removed" false
+    (List.exists (fun (b : App.buffer_entry) -> b.id = alpha_id) st.buffers);
+  let live_ids = List.map (fun (b : App.buffer_entry) -> b.id) st.buffers in
+  Alcotest.(check bool) "windows replaced" true
+    (Frame.leaves st.frame
+     |> List.for_all (fun w -> w.Frame.buffer_id <> alpha_id && List.mem w.Frame.buffer_id live_ids))
+
+let test_independent_undo_per_buffer () =
+  let st = initial_state |> App.open_file ~path:"alpha.txt" ~content:"a" in
+  let st = upd st (Move BufEnd) |> fun st -> upd st (Insert (Uchar.of_char '!')) in
+  let st = App.open_file ~path:"beta.txt" ~content:"b" st in
+  let st = upd st (Move BufEnd) |> fun st -> upd st (Insert (Uchar.of_char '?')) in
+  let st = upd st Undo in
+  Alcotest.(check string) "beta undo only" "b" (Buffer.to_string st.buffer);
+  let st = upd st (SwitchBuffer "alpha.txt") in
+  Alcotest.(check string) "alpha still edited" "a!" (Buffer.to_string st.buffer);
+  let st = upd st Undo in
+  Alcotest.(check string) "alpha undo separate" "a" (Buffer.to_string st.buffer)
+
+let test_focus_window_activates_its_buffer () =
+  let st = initial_state |> App.open_file ~path:"alpha.txt" ~content:"a" in
+  let alpha_id = st.current_buffer_id in
+  let st = App.open_file ~path:"beta.txt" ~content:"b" st in
+  let beta_id = st.current_buffer_id in
+  let st = upd st SplitWindowHorizontal in
+  let st = { st with frame = Frame.replace_buffer ~old_id:beta_id ~new_id:alpha_id st.frame } in
+  let st = upd st FocusNextWindow in
+  Alcotest.(check int) "focused buffer loaded" alpha_id st.current_buffer_id;
+  Alcotest.(check string) "alpha content active" "a" (Buffer.to_string st.buffer)
+
 let () =
   let open Alcotest in
   run "App" [
@@ -733,5 +812,14 @@ let () =
       test_case "close_others"           `Quick test_close_other_windows;
       test_case "independent_scroll"     `Quick test_focused_window_scroll_independent;
       test_case "commands_in_registry"   `Quick test_window_commands_in_registry;
+    ];
+    "buffers", [
+      test_case "initial_scratch_buffer" `Quick test_initial_scratch_buffer;
+      test_case "open_file_reuses_existing_buffer" `Quick test_open_file_reuses_existing_buffer;
+      test_case "switch_buffer_prompt_and_completion" `Quick test_switch_buffer_prompt_and_completion;
+      test_case "buffer_list_contains_file_and_modified_state" `Quick test_buffer_list_contains_file_and_modified_state;
+      test_case "kill_dirty_buffer_requires_confirmation_and_replaces_windows" `Quick test_kill_dirty_buffer_requires_confirmation_and_replaces_windows;
+      test_case "independent_undo_per_buffer" `Quick test_independent_undo_per_buffer;
+      test_case "focus_window_activates_its_buffer" `Quick test_focus_window_activates_its_buffer;
     ];
   ]
