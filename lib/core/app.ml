@@ -6,6 +6,7 @@ type mode =
   | PromptSaveAs
   | ConfirmQuit
   | PromptGotoLine
+  | PromptMx
 
 type move_target =
   | CharF | CharB | LineN | LineP
@@ -38,18 +39,22 @@ type action =
   | DeleteWordForward
   | KillLine
   | StartGotoLinePrompt
+  | StartMx
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo
   | Redo
   | Help
+  | MinibufTab
 
 type snapshot = {
   buffer : Buffer.t;
   cursor : Cursor.t;
 }
 
-type app_state = {
+type handler = app_state -> app_state * cmd
+
+and app_state = {
   buffer          : Buffer.t;
   cursor          : Cursor.t;
   quit            : bool;
@@ -65,30 +70,7 @@ type app_state = {
   redo_stack      : snapshot list;
   pending_keys    : Key.t list;
   keymap          : Keymap.t list;
-}
-
-let initial_state = {
-  buffer    = Buffer.empty;
-  cursor    = Cursor.create 0;
-  quit      = false;
-  file_path = None;
-  modified  = false;
-  mode      = Normal;
-  minibuf   = "";
-  message   = "";
-  scroll_top_line = 0;
-  cols      = 80;
-  rows      = 24;
-  undo_stack   = [];
-  redo_stack   = [];
-  pending_keys = [];
-  keymap       = [Keymap.emacs_default];
-}
-
-let state_with_file ~path ~content = {
-  initial_state with
-  buffer    = Buffer.of_string content;
-  file_path = Some path;
+  registry        : handler Registry.t;
 }
 
 let prompt_action_of_key mode key =
@@ -112,6 +94,14 @@ let prompt_action_of_key mode key =
       | Key.Ctrl 'g'             -> MinibufCancel
       | Key.Char c when
           let i = Uchar.to_int c in i >= 48 && i <= 57 -> MinibufAppend c
+      | _                        -> Ignore)
+  | PromptMx -> (match key with
+      | Key.Enter | Key.Ctrl 'm' -> MinibufConfirm
+      | Key.Backspace
+      | Key.Delete               -> MinibufBackspace
+      | Key.Ctrl 'g'             -> MinibufCancel
+      | Key.Tab | Key.Ctrl 'i'   -> MinibufTab
+      | Key.Char c               -> MinibufAppend c
       | _                        -> Ignore)
   | Normal       -> Ignore  (* not a prompt mode *)
 
@@ -140,6 +130,7 @@ let command_of_name name =
   | "redo"                 -> Redo
   | "goto-line"            -> StartGotoLinePrompt
   | "help"                 -> Help
+  | "execute-extended-command" -> StartMx
   | "cancel"               -> Ignore
   | _                      -> Ignore
 
@@ -166,9 +157,27 @@ let utf8_char_length_at buf offset =
     | `Malformed _ -> 1
     | _ -> 0
 
+let longest_common_prefix = function
+  | [] -> ""
+  | first :: rest ->
+      let lcp_len = ref (String.length first) in
+      List.iter (fun s ->
+        let i = ref 0 in
+        while !i < !lcp_len && !i < String.length s && first.[!i] = s.[!i] do
+          incr i
+        done;
+        lcp_len := !i
+      ) rest;
+      String.sub first 0 !lcp_len
+
 let ensure_cursor_visible st =
   let (line, _) = Buffer.offset_to_line_col ~offset:(Cursor.primary st.cursor).head st.buffer in
-  let viewport_height = st.rows - 1 in (* Bottom row reserved for status bar *)
+  let reserved_rows =
+    match st.mode with
+    | PromptMx -> 2
+    | _ -> 1
+  in
+  let viewport_height = max 1 (st.rows - reserved_rows) in
   if line < st.scroll_top_line then
     { st with scroll_top_line = line }
   else if line >= st.scroll_top_line + viewport_height then
@@ -322,6 +331,9 @@ let rec update state action =
         { st with buffer; cursor; modified = true;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
       else st, Noop
+  (* ── M-x ────────────────────────────────────────────────────────── *)
+  | StartMx ->
+      { st with mode = PromptMx; minibuf = "" }, Noop
   (* ── goto-line ──────────────────────────────────────────────────── *)
   | StartGotoLinePrompt ->
       { st with mode = PromptGotoLine; minibuf = "" }, Noop
@@ -353,12 +365,27 @@ let rec update state action =
        | PromptGotoLine ->
            let n = Option.value ~default:1 (int_of_string_opt st.minibuf) in
            fst (update { st with mode = Normal; minibuf = "" } (JumpToLine n)), Noop
+       | PromptMx ->
+           let name = String.trim st.minibuf in
+           let st' = { st with mode = Normal; minibuf = "" } in
+           (match Registry.lookup name st'.registry with
+            | None         -> { st' with message = "No command: " ^ name }, Noop
+            | Some handler -> handler st')
        | _ ->
            let path = st.minibuf in
            let content = Buffer.to_string st.buffer in
            { st with mode = Normal; minibuf = "" }, WriteFile { path; content })
   | MinibufCancel ->
       { st with mode = Normal; minibuf = "" }, Noop
+  | MinibufTab ->
+      (match st.mode with
+       | PromptMx ->
+           let matches = Registry.complete ~prefix:st.minibuf st.registry in
+           let lcp = longest_common_prefix matches in
+           if String.length lcp > String.length st.minibuf
+           then { st with minibuf = lcp }, Noop
+           else st, Noop
+       | _ -> st, Noop)
   (* ── IO results ─────────────────────────────────────────────────── *)
   | WriteDone path ->
       { st with file_path = Some path; modified = false; message = "Saved." }, Noop
@@ -376,9 +403,49 @@ let rec update state action =
   in
   (ensure_cursor_visible new_st, cmd)
 
+(** Registry pre-loaded with all built-in commands. *)
+let default_registry =
+  let names = [
+    "move-forward-char"; "move-backward-char"; "move-next-line";
+    "move-prev-line"; "move-forward-word"; "move-backward-word";
+    "move-line-start"; "move-line-end"; "move-buf-start"; "move-buf-end";
+    "delete-forward-char"; "backward-delete-char"; "delete-word-back";
+    "kill-word-forward"; "kill-line"; "new-line"; "save"; "save-as";
+    "quit"; "undo"; "redo"; "goto-line"; "execute-extended-command";
+  ] in
+  List.fold_left (fun r name ->
+    let action = command_of_name name in
+    Registry.register name (fun st -> update st action) r
+  ) Registry.empty names
+
+let initial_state = {
+  buffer    = Buffer.empty;
+  cursor    = Cursor.create 0;
+  quit      = false;
+  file_path = None;
+  modified  = false;
+  mode      = Normal;
+  minibuf   = "";
+  message   = "";
+  scroll_top_line = 0;
+  cols      = 80;
+  rows      = 24;
+  undo_stack   = [];
+  redo_stack   = [];
+  pending_keys = [];
+  keymap       = [Keymap.emacs_default];
+  registry     = default_registry;
+}
+
+let state_with_file ~path ~content = {
+  initial_state with
+  buffer    = Buffer.of_string content;
+  file_path = Some path;
+}
+
 let handle_key state key =
   match state.mode with
-  | PromptSaveAs | ConfirmQuit | PromptGotoLine ->
+  | PromptSaveAs | ConfirmQuit | PromptGotoLine | PromptMx ->
       let action = prompt_action_of_key state.mode key in
       update state action
   | Normal ->

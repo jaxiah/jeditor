@@ -52,11 +52,15 @@ can be overridden by adding a higher-priority layer to `app_state.keymap`.
 | `C-c`     | `quit`    | Quit (prompts if unsaved changes)                   |
 | `C-g`     | `cancel`  | Cancel prompt or pending prefix                     |
 | `Escape`  | `cancel`  | Cancel prompt or pending prefix                     |
+| `M-x`     | `execute-extended-command` | Prompt for and execute a named command |
 
 ## Notes
 
 - **Prefix hint**: while typing a multi-key sequence (e.g. after `C-x`), the
   status bar shows the keys typed so far (`C-x ...`).
+- **M-x completion**: while entering a command name, matching registered
+  commands are shown above the minibuffer; `Tab` extends to the longest common
+  prefix when possible.
 - **Unbound keys**: non-printable unbound keys display `"Key not bound"` in
   the status bar.
 - **Self-insert**: any printable `Key.Char` not bound in the keymap is

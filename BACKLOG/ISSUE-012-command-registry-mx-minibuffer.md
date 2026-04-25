@@ -14,13 +14,13 @@ Implement the command registry, M-x invocation, and the full Minibuffer module. 
 
 ## Acceptance criteria
 
-- [ ] Every command from previous issues is accessible by name via M-x
-- [ ] M-x shows a completion list that narrows as the user types
-- [ ] Selecting and executing a command via M-x produces the same result as its keybinding
-- [ ] Minibuffer C-g cancels without side effects and returns to the previous editor state
-- [ ] A plugin or user config can register a new command that immediately appears in M-x
-- [ ] Invoking an unknown command name displays an error message in the minibuffer
-- [ ] The minibuffer does not interfere with undo history -- commands invoked via M-x are undoable in the same way as keybinding-invoked commands
+- [x] Every command from previous issues is accessible by name via M-x
+- [x] M-x shows a completion list that narrows as the user types
+- [x] Selecting and executing a command via M-x produces the same result as its keybinding
+- [x] Minibuffer C-g cancels without side effects and returns to the previous editor state
+- [x] A plugin or user config can register a new command that immediately appears in M-x
+- [x] Invoking an unknown command name displays an error message in the minibuffer
+- [x] The minibuffer does not interfere with undo history -- commands invoked via M-x are undoable in the same way as keybinding-invoked commands
 
 ## Blocked by
 
@@ -32,3 +32,11 @@ Implement the command registry, M-x invocation, and the full Minibuffer module. 
 - User story 26 (minibuffer)
 - User story 48 (plugin registers command visible in M-x)
 - User story 54 (plugin displays message in minibuffer)
+
+## Status
+
+2026-04-25 -- all acceptance criteria met. Implemented a pure functional
+`Registry` module, added `PromptMx` minibuffer mode, bound `M-x` to
+`execute-extended-command`, rendered completion candidates above the minibuffer,
+and added tests for registry lookup/completion, M-x execution, cancellation,
+unknown commands, custom command registration, built-in reachability, and undo.

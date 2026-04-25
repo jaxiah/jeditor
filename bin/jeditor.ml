@@ -16,12 +16,17 @@ let render term state =
   let line_count = Buffer.line_count state.App.buffer in
   let gutter = View.gutter_width ~line_count in
   let text_cols = cols - gutter in
+  let text_rows =
+    match state.App.mode with
+    | App.PromptMx -> max 0 (rows - 2)
+    | _ -> max 0 (rows - 1)
+  in
 
   Terminal.hide_cursor term;
   Terminal.clear_screen term;
 
   (* 1. Render text area with gutter using scroll_top_line *)
-  for i = 0 to rows - 2 do
+  for i = 0 to text_rows - 1 do
     let buffer_line_idx = i + state.App.scroll_top_line in
     if buffer_line_idx < line_count then begin
       Terminal.move_to term ~row:i ~col:0;
@@ -49,7 +54,7 @@ let render term state =
     end
   done;
 
-  (* 2. Render status bar *)
+  (* 2. Render status bar and prompt/completion area *)
   let (byte_line, byte_col) =
     Buffer.offset_to_line_col
       ~offset:(Cursor.primary state.App.cursor).head
@@ -66,6 +71,8 @@ let render term state =
         "Unsaved changes - quit anyway? (y/n)"
     | App.PromptGotoLine ->
         "Go to line: " ^ state.App.minibuf ^ "_"
+    | App.PromptMx ->
+        "M-x " ^ state.App.minibuf ^ "_"
     | _ ->
         if state.App.pending_keys <> [] then
           (* show accumulated prefix hint, e.g. "C-x ..." *)
@@ -79,13 +86,27 @@ let render term state =
           ~line_count
           ~cols
   in
+  if state.App.mode = App.PromptMx && rows >= 2 then begin
+    let completions =
+      Registry.complete ~prefix:state.App.minibuf state.App.registry
+      |> String.concat " "
+    in
+    let completion_text =
+      if String.length completions > cols
+      then String.sub completions 0 cols
+      else completions
+    in
+    Terminal.move_to term ~row:(rows - 2) ~col:0;
+    Terminal.clear_line term;
+    Terminal.write_string term completion_text Attr.default
+  end;
   Terminal.move_to term ~row:(rows - 1) ~col:0;
   Terminal.clear_line term;
   Terminal.write_string term stext Attr.default;
 
   (* 3. Position cursor relative to viewport *)
   let relative_line = byte_line - state.App.scroll_top_line in
-  if relative_line >= 0 && relative_line < rows - 1 then begin
+  if relative_line >= 0 && relative_line < text_rows then begin
     Terminal.move_to term ~row:relative_line ~col:(gutter + dcol);
     Terminal.show_cursor term
   end else begin

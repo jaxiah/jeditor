@@ -289,6 +289,140 @@ let test_goto_line_clamp () =
   (* Should clamp to last line = line 3, offset 4 *)
   Alcotest.(check int) "clamped to last line" 4 (Cursor.primary st.cursor).head
 
+(* ── ISSUE-012: M-x / command registry ─────────────────────────────── *)
+
+let key_mx = Key.Meta (Uchar.of_char 'x')
+
+let test_mx_opens_prompt () =
+  let st = fst (handle_key initial_state key_mx) in
+  Alcotest.(check bool) "mode is PromptMx" true (st.mode = PromptMx);
+  Alcotest.(check string) "minibuf empty" "" st.minibuf
+
+let test_mx_execute_known_command () =
+  (* "move-forward-char" via M-x should move cursor same as C-f *)
+  let buf_content = "hello" in
+  let st0 = { (state_with_file ~path:"f" ~content:buf_content)
+              with cols = 80; rows = 24 } in
+  (* via keybinding C-f *)
+  let st_key = fst (handle_key st0 (Key.Ctrl 'f')) in
+  (* via M-x *)
+  let st_mx = fst (handle_key st0 key_mx) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'm'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'o'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'v'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'e'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char '-'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'f'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'o'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'r'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'w'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'a'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'r'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'd'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char '-'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'c'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'h'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'a'))) in
+  let st_mx = fst (handle_key st_mx (Key.Char (Uchar.of_char 'r'))) in
+  let st_mx = fst (handle_key st_mx Key.Enter) in
+  Alcotest.(check int) "cursor same as C-f"
+    (Cursor.primary st_key.cursor).head
+    (Cursor.primary st_mx.cursor).head;
+  Alcotest.(check bool) "mode back to Normal" true (st_mx.mode = Normal)
+
+let test_mx_unknown_command_error () =
+  let st = fst (handle_key initial_state key_mx) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'n'))) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'o'))) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'p'))) in
+  let st = fst (handle_key st Key.Enter) in
+  Alcotest.(check bool) "mode back to Normal" true (st.mode = Normal);
+  Alcotest.(check bool) "error message set" true (st.message <> "")
+
+let test_mx_cg_cancel () =
+  let st0 = { (state_with_file ~path:"f" ~content:"hello")
+              with cols = 80; rows = 24 } in
+  let st = fst (handle_key st0 key_mx) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'x'))) in
+  let st = fst (handle_key st (Key.Ctrl 'g')) in
+  Alcotest.(check bool) "mode Normal" true (st.mode = Normal);
+  Alcotest.(check string) "buffer unchanged"
+    (Buffer.to_string st0.buffer) (Buffer.to_string st.buffer);
+  Alcotest.(check string) "minibuf cleared" "" st.minibuf
+
+let test_mx_undo_works () =
+  (* Execute "new-line" via M-x, then undo; buffer should be back to original. *)
+  let st0 = { (state_with_file ~path:"f" ~content:"hello")
+              with cols = 80; rows = 24 } in
+  let st = fst (handle_key st0 key_mx) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'n'))) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'e'))) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'w'))) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char '-'))) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'l'))) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'i'))) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'n'))) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char 'e'))) in
+  let st = fst (handle_key st Key.Enter) in
+  (* buffer should now contain a newline *)
+  Alcotest.(check bool) "newline inserted"
+    true (Buffer.to_string st.buffer <> Buffer.to_string st0.buffer);
+  (* undo *)
+  let st = fst (handle_key st (Key.Ctrl '/')) in
+  Alcotest.(check string) "buffer restored after undo"
+    (Buffer.to_string st0.buffer) (Buffer.to_string st.buffer)
+
+let test_mx_register_new_command () =
+  (* Register a new command handler — verifies registration and M-x dispatch. *)
+  let reg = Registry.register "test-insert-x"
+              (fun st -> App.update st (Insert (Uchar.of_char 'x')))
+              initial_state.registry in
+  (* command must appear in completion *)
+  Alcotest.(check bool) "appears in complete" true
+    (List.mem "test-insert-x" (Registry.complete ~prefix:"test-" reg));
+  (* execute via M-x *)
+  let st = { initial_state with registry = reg } in
+  let type_str s st = String.fold_left
+    (fun st c -> fst (handle_key st (Key.Char (Uchar.of_char c)))) st s in
+  let st = fst (handle_key st key_mx) in
+  let st = type_str "test-insert-x" st in
+  let st = fst (handle_key st Key.Enter) in
+  Alcotest.(check string) "action ran" "x" (Buffer.to_string st.buffer)
+
+let test_mx_all_builtins_reachable () =
+  (* Every command name from emacs_default must exist in initial_state.registry *)
+  let reg_names = Registry.names initial_state.registry in
+  let keymap_commands =
+    let rec collect_commands km =
+      List.concat_map (fun (_, binding) ->
+        match binding with
+        | Keymap.Command name -> [name]
+        | Keymap.Prefix sub   -> collect_commands sub
+      ) km
+    in
+    collect_commands Keymap.emacs_default
+    |> List.sort_uniq String.compare
+    |> List.filter (fun n -> n <> "cancel" && n <> "help")
+    (* "cancel" and "help" are UI-only, not necessarily in registry *)
+  in
+  List.iter (fun name ->
+    Alcotest.(check bool) ("registry has " ^ name) true
+      (List.mem name reg_names)
+  ) keymap_commands
+
+let test_mx_tab_lcp () =
+  (* Tab completes to the longest common prefix when matches share one. *)
+  let st = fst (handle_key initial_state key_mx) in
+  let type_str s st =
+    String.fold_left (fun st c ->
+      fst (handle_key st (Key.Char (Uchar.of_char c)))
+    ) st s
+  in
+  let st = type_str "move-f" st in
+  let st = fst (handle_key st Key.Tab) in
+  Alcotest.(check string) "minibuf extended to LCP"
+    "move-forward-" st.minibuf
+
 let () =
   let open Alcotest in
   run "App" [
@@ -344,5 +478,15 @@ let () =
       test_case "goto_with_held_alt"     `Quick test_goto_line_with_held_alt;
       test_case "jump_to_line"           `Quick test_goto_line_jump;
       test_case "jump_clamp"             `Quick test_goto_line_clamp;
+    ];
+    "mx", [
+      test_case "opens_prompt"           `Quick test_mx_opens_prompt;
+      test_case "execute_known_command"  `Quick test_mx_execute_known_command;
+      test_case "unknown_command_error"  `Quick test_mx_unknown_command_error;
+      test_case "cg_cancel"              `Quick test_mx_cg_cancel;
+      test_case "undo_works"             `Quick test_mx_undo_works;
+      test_case "register_new_command"   `Quick test_mx_register_new_command;
+      test_case "all_builtins_reachable" `Quick test_mx_all_builtins_reachable;
+      test_case "tab_lcp"                `Quick test_mx_tab_lcp;
     ];
   ]

@@ -6,6 +6,7 @@ type mode =
   | PromptSaveAs
   | ConfirmQuit
   | PromptGotoLine
+  | PromptMx
 
 type move_target =
   | CharF | CharB | LineN | LineP
@@ -24,18 +25,20 @@ type action =
   | WriteDone of string | WriteError of string | Quit | Ignore
   | Move of move_target
   | DeleteForward | DeleteWordBack | DeleteWordForward | KillLine
-  | StartGotoLinePrompt
+  | StartGotoLinePrompt | StartMx
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo | Redo
-  | Help
+  | Help | MinibufTab
 
 type snapshot = {
   buffer : Buffer.t;
   cursor : Cursor.t;
 }
 
-type app_state = {
+type handler = app_state -> app_state * cmd
+
+and app_state = {
   buffer          : Buffer.t;
   cursor          : Cursor.t;
   quit            : bool;
@@ -51,6 +54,7 @@ type app_state = {
   redo_stack      : snapshot list;
   pending_keys    : Key.t list;
   keymap          : Keymap.t list;
+  registry        : handler Registry.t;
 }
 
 val initial_state : app_state

@@ -22,3 +22,8 @@
  (name test_keymap)
  (modules test_keymap)
  (libraries jeditor_core jeditor_terminal alcotest))
+
+(test
+ (name test_registry)
+ (modules test_registry)
+ (libraries jeditor_core alcotest))
