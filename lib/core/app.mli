@@ -6,6 +6,8 @@ type mode =
   | PendingCx
   | PromptSaveAs
   | ConfirmQuit
+  | PendingMg
+  | PromptGotoLine
 
 type move_target =
   | CharF | CharB | LineN | LineP
@@ -35,7 +37,11 @@ type action =
   | Ignore
   | Move of move_target
   | DeleteForward
+  | DeleteWordBack
   | KillLine
+  | JumpToLinePrompt
+  | StartGotoLinePrompt
+  | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo
   | Redo

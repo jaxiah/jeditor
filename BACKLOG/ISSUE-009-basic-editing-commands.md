@@ -26,7 +26,7 @@ Implement the full set of basic navigation and deletion commands. After this iss
 
 ## Completed
 
-2026-04-25 — all acceptance criteria met. Implemented via TDD. Added Emacs-like navigation (C-f/b/n/p, M-f/b, etc.) and deletion (C-d, C-k). Implemented viewport scrolling logic in `App.update` and the renderer. Added `Resize` action to sync terminal dimensions.
+2026-04-25 — all acceptance criteria met. Implemented via TDD. Added Emacs-like navigation (C-f/b/n/p, M-f/b, etc.) and deletion (C-d, C-k, M-Backspace). Implemented viewport scrolling logic in `App.update` and the renderer. Added `Resize` action to sync terminal dimensions. M-g g goto-line implemented with `PendingMg`/`PromptGotoLine` modes.
 
 ## Blocked by
 

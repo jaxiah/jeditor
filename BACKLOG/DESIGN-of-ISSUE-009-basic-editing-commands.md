@@ -15,13 +15,20 @@ type move_target =
   | LineStart | LineEnd
   | BufStart | BufEnd
 
+type mode =
+  ...
+  | PendingMg        (** Waiting for second key of M-g sequence *)
+  | PromptGotoLine   (** Entering line number in minibuffer *)
+
 type action =
   ...
   | Move of move_target
   | DeleteForward
+  | DeleteWordBack          (** M-Backspace: kill word before cursor (uses prev_word_boundary) *)
   | KillLine
-  | JumpToLinePrompt
-  | JumpToLine of int
+  | JumpToLinePrompt        (** M-g: enter PendingMg mode *)
+  | StartGotoLinePrompt     (** second key g in PendingMg: open PromptGotoLine *)
+  | JumpToLine of int       (** jump cursor to 1-indexed line, clamped to buffer bounds *)
   ...
 
 type app_state = {
@@ -70,7 +77,8 @@ val prev_word_boundary : offset:int -> t -> int
 2. **`Buffer` indentation**: Verify `first_non_whitespace` handles empty lines and lines with various leading whitespaces. (Acceptance: "C-a moves to the first non-whitespace character")
 3. **`App` Navigation Actions**: Verify `update` correctly modifies the cursor offset for each `move_target`. (Acceptance: "All navigation commands move the cursor to the correct byte offset")
 4. **`App` Scrolling**: Verify that `update` adjusts `scroll_top_line` when the cursor moves out of the current viewport. (Acceptance: "Viewport scrolls to keep cursor visible")
-5. **`App` Deletion Actions**: Verify `KillLine` and `DeleteForward` behavior, especially edge cases like end-of-buffer. (Acceptance: "C-k on an empty line deletes the newline", "C-d at end of buffer does nothing")
+5. **`App` Deletion Actions**: Verify `KillLine`, `DeleteForward`, and `DeleteWordBack` behavior, especially edge cases like end-of-buffer and position 0. (Acceptance: "C-k on an empty line deletes the newline", "C-d at end of buffer does nothing", "M-Backspace delete word backward")
+6. **`App` Goto Line**: Verify `JumpToLinePrompt`→`PendingMg`, `StartGotoLinePrompt`→`PromptGotoLine`, `JumpToLine n` cursor placement, and out-of-range clamping. (Acceptance: "M-g g prompts for a line number and jumps correctly")
 
 ---
 

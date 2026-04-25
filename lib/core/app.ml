@@ -6,6 +6,8 @@ type mode =
   | PendingCx
   | PromptSaveAs
   | ConfirmQuit
+  | PendingMg
+  | PromptGotoLine
 
 type move_target =
   | CharF | CharB | LineN | LineP
@@ -35,7 +37,11 @@ type action =
   | Ignore
   | Move of move_target
   | DeleteForward
+  | DeleteWordBack
   | KillLine
+  | JumpToLinePrompt
+  | StartGotoLinePrompt
+  | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo
   | Redo
@@ -105,6 +111,8 @@ let action_of_key mode key =
       | Key.Ctrl 'e'             -> Move LineEnd
       | Key.Ctrl 'd'             -> DeleteForward
       | Key.Ctrl 'k'             -> KillLine
+      | Key.Ctrl_meta 'h'        -> DeleteWordBack  (* ESC + Backspace = M-Backspace *)
+      | Key.Meta (c) when Uchar.to_char c = 'g' -> JumpToLinePrompt
       | Key.Ctrl '/' | Key.Ctrl '_' -> Undo
       | Key.Meta (c) when Uchar.to_char c = '_' -> Redo
       | _                        -> Ignore)
@@ -125,6 +133,17 @@ let action_of_key mode key =
           Uchar.to_int c = Char.code 'y' ||
           Uchar.to_int c = Char.code 'Y' -> Quit
       | _                        -> MinibufCancel)
+  | PendingMg -> (match key with
+      | Key.Char c when Uchar.to_char c = 'g' -> StartGotoLinePrompt
+      | _                        -> Ignore)
+  | PromptGotoLine -> (match key with
+      | Key.Enter                -> MinibufConfirm
+      | Key.Backspace
+      | Key.Delete               -> MinibufBackspace
+      | Key.Ctrl 'g'             -> MinibufCancel
+      | Key.Char c when
+          let i = Uchar.to_int c in i >= 48 && i <= 57 -> MinibufAppend c
+      | _                        -> Ignore)
 
 (** Return the byte length of the UTF-8 codepoint ending at [offset]. *)
 let utf8_char_length_before buf offset =
@@ -159,7 +178,7 @@ let ensure_cursor_visible st =
   else
     st
 
-let update state action =
+let rec update state action =
   let st = { state with message = "" } in
   let take_snapshot st = { buffer = st.buffer; cursor = st.cursor } in
   let (new_st, cmd) = match action with
@@ -262,6 +281,17 @@ let update state action =
         { st with buffer; cursor; modified = true;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
       else st, Noop
+  | DeleteWordBack ->
+      let offset = (Cursor.primary st.cursor).head in
+      let word_start = Buffer.prev_word_boundary ~offset st.buffer in
+      let del_len = offset - word_start in
+      if del_len > 0 then
+        let snap = take_snapshot st in
+        let buffer = Buffer.delete ~offset:word_start ~length:del_len st.buffer in
+        let cursor = Cursor.apply_edit ~offset:word_start ~deleted:del_len ~inserted:0 st.cursor in
+        { st with buffer; cursor; modified = true;
+                  undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
+      else st, Noop
   | KillLine ->
       let offset = (Cursor.primary st.cursor).head in
       let (l, _) = Buffer.offset_to_line_col ~offset st.buffer in
@@ -281,6 +311,16 @@ let update state action =
         { st with buffer; cursor; modified = true;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
       else st, Noop
+  (* ── M-g goto-line ──────────────────────────────────────────────── *)
+  | JumpToLinePrompt ->
+      { st with mode = PendingMg }, Noop
+  | StartGotoLinePrompt ->
+      { st with mode = PromptGotoLine; minibuf = "" }, Noop
+  | JumpToLine n ->
+      let line_count = Buffer.line_count st.buffer in
+      let line = max 0 (min (n - 1) (line_count - 1)) in
+      let offset = Buffer.line_to_offset ~line st.buffer in
+      { st with mode = Normal; minibuf = ""; cursor = Cursor.create offset }, Noop
   (* ── C-x prefix ─────────────────────────────────────────────────── *)
   | PendingCx ->
       { st with mode = PendingCx }, Noop
@@ -303,9 +343,14 @@ let update state action =
       let minibuf = if len > 0 then String.sub st.minibuf 0 (len - 1) else "" in
       { st with minibuf }, Noop
   | MinibufConfirm ->
-      let path = st.minibuf in
-      let content = Buffer.to_string st.buffer in
-      { st with mode = Normal; minibuf = "" }, WriteFile { path; content }
+      (match st.mode with
+       | PromptGotoLine ->
+           let n = Option.value ~default:1 (int_of_string_opt st.minibuf) in
+           fst (update { st with mode = Normal; minibuf = "" } (JumpToLine n)), Noop
+       | _ ->
+           let path = st.minibuf in
+           let content = Buffer.to_string st.buffer in
+           { st with mode = Normal; minibuf = "" }, WriteFile { path; content })
   | MinibufCancel ->
       { st with mode = Normal; minibuf = "" }, Noop
   (* ── IO results ─────────────────────────────────────────────────── *)
