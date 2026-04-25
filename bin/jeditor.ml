@@ -63,7 +63,7 @@ let render term state =
     | App.PromptSaveAs ->
         "Save as: " ^ state.App.minibuf ^ "_"
     | App.ConfirmQuit ->
-        "Unsaved changes \xe2\x80\x94 quit anyway? (y/n)"
+        "Unsaved changes - quit anyway? (y/n)"
     | App.PromptGotoLine ->
         "Go to line: " ^ state.App.minibuf ^ "_"
     | _ ->

@@ -97,6 +97,32 @@ CAMLprim value jeditor_read_char(value unit) {
     CAMLreturn(Val_int(-1));
 }
 
+CAMLprim value jeditor_read_key_event(value unit) {
+    CAMLparam1(unit);
+    CAMLlocal2(tuple, some);
+    HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
+    INPUT_RECORD ir[1];
+    DWORD read;
+
+    while (1) {
+        if (!ReadConsoleInputW(hIn, ir, 1, &read) || read == 0) {
+            CAMLreturn(Val_int(0)); /* None */
+        }
+
+        if (ir[0].EventType == KEY_EVENT && ir[0].Event.KeyEvent.bKeyDown) {
+            KEY_EVENT_RECORD key = ir[0].Event.KeyEvent;
+            tuple = caml_alloc(3, 0);
+            Store_field(tuple, 0, Val_int((int)key.uChar.UnicodeChar));
+            Store_field(tuple, 1, Val_int((int)key.wVirtualKeyCode));
+            Store_field(tuple, 2, Val_int((int)key.dwControlKeyState));
+
+            some = caml_alloc(1, 0);
+            Store_field(some, 0, tuple);
+            CAMLreturn(some);
+        }
+    }
+}
+
 #else
 
 #include <sys/ioctl.h>
