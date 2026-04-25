@@ -36,6 +36,8 @@ type action =
   | SearchConfirm | SearchCancel | StartQueryReplace
   | QueryReplaceConfirmSearch | QueryReplaceConfirmReplacement
   | QueryReplaceYes | QueryReplaceNo | QueryReplaceAll | QueryReplaceQuit
+  | SplitWindowHorizontal | SplitWindowVertical | FocusNextWindow
+  | CloseWindow | CloseOtherWindows
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo | Redo
@@ -76,6 +78,7 @@ and app_state = {
   search_wrapped  : bool;
   replace_query   : string;
   replace_with    : string;
+  frame           : Frame.t;
 }
 
 val initial_state : app_state

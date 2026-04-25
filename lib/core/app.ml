@@ -60,6 +60,11 @@ type action =
   | QueryReplaceNo
   | QueryReplaceAll
   | QueryReplaceQuit
+  | SplitWindowHorizontal
+  | SplitWindowVertical
+  | FocusNextWindow
+  | CloseWindow
+  | CloseOtherWindows
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo
@@ -102,6 +107,7 @@ and app_state = {
   search_wrapped  : bool;
   replace_query   : string;
   replace_with    : string;
+  frame           : Frame.t;
 }
 
 let prompt_action_of_key mode key =
@@ -199,6 +205,11 @@ let command_of_name name =
   | "isearch-forward"      -> StartSearch `Forward
   | "isearch-backward"     -> StartSearch `Backward
   | "query-replace"        -> StartQueryReplace
+  | "split-window-below"   -> SplitWindowHorizontal
+  | "split-window-right"   -> SplitWindowVertical
+  | "other-window"         -> FocusNextWindow
+  | "delete-window"        -> CloseWindow
+  | "delete-other-windows" -> CloseOtherWindows
   | "cancel"               -> Cancel
   | _                      -> Ignore
 
@@ -326,18 +337,27 @@ let clear_search_state st =
 
 let ensure_cursor_visible st =
   let (line, _) = Buffer.offset_to_line_col ~offset:(Cursor.primary st.cursor).head st.buffer in
+  let focused_window = Frame.focused_window st.frame in
   let reserved_rows =
     match st.mode with
     | PromptMx -> 2
     | _ -> 1
   in
   let viewport_height = max 1 (st.rows - reserved_rows) in
-  if line < st.scroll_top_line then
-    { st with scroll_top_line = line }
-  else if line >= st.scroll_top_line + viewport_height then
-    { st with scroll_top_line = line - viewport_height + 1 }
-  else
-    st
+  let scroll_top_line =
+    if line < focused_window.scroll_top_line then
+      line
+    else if line >= focused_window.scroll_top_line + viewport_height then
+      line - viewport_height + 1
+    else
+      focused_window.scroll_top_line
+  in
+  let frame =
+    Frame.update_focused
+      (fun w -> { w with Frame.scroll_top_line })
+      st.frame
+  in
+  { st with scroll_top_line; frame }
 
 let rec update state action =
   let st = { state with message = "" } in
@@ -345,6 +365,24 @@ let rec update state action =
   let (new_st, cmd) = match action with
   | Resize { cols; rows } ->
       { st with cols; rows }, Noop
+  | SplitWindowHorizontal ->
+      let frame = Frame.split_focused Frame.Horizontal st.frame in
+      { st with frame }, Noop
+  | SplitWindowVertical ->
+      let frame = Frame.split_focused Frame.Vertical st.frame in
+      { st with frame }, Noop
+  | FocusNextWindow ->
+      let frame = Frame.focus_next st.frame in
+      let scroll_top_line = (Frame.focused_window frame).scroll_top_line in
+      { st with frame; scroll_top_line }, Noop
+  | CloseWindow ->
+      let frame = Frame.close_focused st.frame in
+      let scroll_top_line = (Frame.focused_window frame).scroll_top_line in
+      { st with frame; scroll_top_line }, Noop
+  | CloseOtherWindows ->
+      let frame = Frame.close_others st.frame in
+      let scroll_top_line = (Frame.focused_window frame).scroll_top_line in
+      { st with frame; scroll_top_line }, Noop
   | Undo ->
       (match st.undo_stack with
        | [] -> st, Noop
@@ -688,7 +726,13 @@ let rec update state action =
   | Ignore ->
       clear_kill_sequence st, Noop
   in
-  (ensure_cursor_visible new_st, cmd)
+  let should_preserve_window_scroll =
+    match action with
+    | SplitWindowHorizontal | SplitWindowVertical | FocusNextWindow
+    | CloseWindow | CloseOtherWindows -> true
+    | _ -> false
+  in
+  (if should_preserve_window_scroll then new_st else ensure_cursor_visible new_st), cmd
 
 (** Registry pre-loaded with all built-in commands. *)
 let default_registry =
@@ -701,6 +745,8 @@ let default_registry =
     "quit"; "undo"; "redo"; "goto-line"; "execute-extended-command";
     "set-mark-command"; "kill-region"; "copy-region"; "yank";
     "isearch-forward"; "isearch-backward"; "query-replace";
+    "split-window-below"; "split-window-right"; "other-window";
+    "delete-window"; "delete-other-windows";
   ] in
   List.fold_left (fun r name ->
     let action = command_of_name name in
@@ -735,6 +781,7 @@ let initial_state = {
   search_wrapped = false;
   replace_query = "";
   replace_with = "";
+  frame = Frame.single ~buffer_id:0;
 }
 
 let state_with_file ~path ~content = {

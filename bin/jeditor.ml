@@ -14,13 +14,7 @@ let () =
 let render term state =
   let (cols, rows) = Terminal.size term in
   let line_count = Buffer.line_count state.App.buffer in
-  let gutter = View.gutter_width ~line_count in
-  let text_cols = cols - gutter in
-  let text_rows =
-    match state.App.mode with
-    | App.PromptMx -> max 0 (rows - 2)
-    | _ -> max 0 (rows - 1)
-  in
+  let frame_rows = rows in
   let selected_range =
     match state.App.mark with
     | None -> None
@@ -40,7 +34,7 @@ let render term state =
     | None, false -> []
   in
   let selection_attr = { Attr.default with Attr.reverse = true } in
-  let write_with_selection ~line_start text =
+  let write_with_selection ~line_start text attr =
     let line_stop = line_start + String.length text in
     let ranges =
       highlight_ranges
@@ -56,60 +50,18 @@ let render term state =
           if pos < String.length text then
             Terminal.write_string term
               (String.sub text pos (String.length text - pos))
-              Attr.default
+              attr
       | (start, stop) :: rest ->
-          if pos < start then
-            Terminal.write_string term (String.sub text pos (start - pos)) Attr.default;
+        if pos < start then
+            Terminal.write_string term (String.sub text pos (start - pos)) attr;
           Terminal.write_string term (String.sub text start (stop - start)) selection_attr;
           write_chunks stop rest
     in
-    if ranges = [] then Terminal.write_string term text Attr.default
+    if ranges = [] then Terminal.write_string term text attr
     else write_chunks 0 ranges
   in
-
-  Terminal.hide_cursor term;
-  Terminal.clear_screen term;
-
-  (* 1. Render text area with gutter using scroll_top_line *)
-  for i = 0 to text_rows - 1 do
-    let buffer_line_idx = i + state.App.scroll_top_line in
-    if buffer_line_idx < line_count then begin
-      Terminal.move_to term ~row:i ~col:0;
-      (* Write gutter: right-aligned line number *)
-      let gtext = Printf.sprintf "%*d " (gutter - 1) (buffer_line_idx + 1) in
-      Terminal.write_string term gtext Attr.default;
-      
-      (* Write line content (truncated to text_cols) *)
-      let line_start = Buffer.line_to_offset ~line:buffer_line_idx state.App.buffer in
-      let next_line_start = 
-        if buffer_line_idx + 1 < line_count then Buffer.line_to_offset ~line:(buffer_line_idx + 1) state.App.buffer
-        else Buffer.length state.App.buffer
-      in
-      let line_len = next_line_start - line_start in
-      (* Strip trailing newline if present for display *)
-      let display_len = if line_len > 0 then
-          let last_char = Buffer.slice ~start:(next_line_start - 1) ~length:1 state.App.buffer in
-          if last_char = "\n" then line_len - 1 else line_len
-        else 0
-      in
-      let full_line = Buffer.slice ~start:line_start ~length:display_len state.App.buffer in
-      (* Simple truncation for now; ideally would use display width *)
-      let truncated = if String.length full_line > text_cols then String.sub full_line 0 text_cols else full_line in
-      write_with_selection ~line_start truncated
-    end
-  done;
-
-  (* 2. Render status bar and prompt/completion area *)
-  let (byte_line, byte_col) =
-    Buffer.offset_to_line_col
-      ~offset:(Cursor.primary state.App.cursor).head
-      state.App.buffer
-  in
-  let line_start = Buffer.line_to_offset ~line:byte_line state.App.buffer in
-  let line_to_cursor = Buffer.slice ~start:line_start ~length:byte_col state.App.buffer in
-  let dcol = Wcwidth.display_col_of_byte_col line_to_cursor ~byte_col in
-  
-  let stext = match state.App.mode with
+  let prompt_status byte_line dcol width =
+    match state.App.mode with
     | App.PromptSaveAs ->
         "Save as: " ^ state.App.minibuf ^ "_"
     | App.ConfirmQuit ->
@@ -139,8 +91,105 @@ let render term state =
           ~cursor_line:byte_line
           ~cursor_display_col:dcol
           ~line_count
-          ~cols
+          ~cols:width
   in
+
+  Terminal.hide_cursor term;
+  Terminal.clear_screen term;
+
+  let (byte_line, byte_col) =
+    Buffer.offset_to_line_col
+      ~offset:(Cursor.primary state.App.cursor).head
+      state.App.buffer
+  in
+  let line_start = Buffer.line_to_offset ~line:byte_line state.App.buffer in
+  let line_to_cursor = Buffer.slice ~start:line_start ~length:byte_col state.App.buffer in
+  let dcol = Wcwidth.display_col_of_byte_col line_to_cursor ~byte_col in
+
+  let focused_id = state.App.frame.Frame.focused in
+  let render_window (window, rect) =
+    if rect.Frame.width > 0 && rect.height > 0 then begin
+      let gutter = View.gutter_width ~line_count in
+      let text_cols = max 0 (rect.width - gutter) in
+      let text_rows = max 0 (rect.height - 1) in
+      for i = 0 to text_rows - 1 do
+        let buffer_line_idx = i + window.Frame.scroll_top_line in
+        Terminal.move_to term ~row:(rect.y + i) ~col:rect.x;
+        Terminal.clear_line term;
+        if buffer_line_idx < line_count then begin
+          let gtext = Printf.sprintf "%*d " (gutter - 1) (buffer_line_idx + 1) in
+          Terminal.write_string term gtext Attr.default;
+          let line_start = Buffer.line_to_offset ~line:buffer_line_idx state.App.buffer in
+          let next_line_start =
+            if buffer_line_idx + 1 < line_count
+            then Buffer.line_to_offset ~line:(buffer_line_idx + 1) state.App.buffer
+            else Buffer.length state.App.buffer
+          in
+          let line_len = next_line_start - line_start in
+          let display_len =
+            if line_len > 0 then
+              let last_char =
+                Buffer.slice ~start:(next_line_start - 1) ~length:1 state.App.buffer
+              in
+              if last_char = "\n" then line_len - 1 else line_len
+            else 0
+          in
+          let full_line = Buffer.slice ~start:line_start ~length:display_len state.App.buffer in
+          let truncated =
+            if String.length full_line > text_cols then String.sub full_line 0 text_cols
+            else full_line
+          in
+          write_with_selection ~line_start truncated Attr.default
+        end
+      done;
+      let status_attr =
+        if window.id = focused_id then { Attr.default with Attr.reverse = true }
+        else Attr.default
+      in
+      let status =
+        if window.id = focused_id then prompt_status byte_line dcol rect.width
+        else
+          View.status_text
+            ~file_path:state.App.file_path
+            ~modified:state.App.modified
+            ~cursor_line:byte_line
+            ~cursor_display_col:dcol
+            ~line_count
+            ~cols:rect.width
+      in
+      Terminal.move_to term ~row:(rect.y + rect.height - 1) ~col:rect.x;
+      Terminal.write_string term status status_attr
+    end
+  in
+
+  let rec draw_dividers rect = function
+    | Frame.Leaf _ -> ()
+    | Frame.Split (Frame.Horizontal, ratio, a, b) ->
+        let first_h = max 1 (int_of_float (float rect.Frame.height *. ratio)) in
+        let first_h = min first_h (max 1 (rect.height - 1)) in
+        let second_h = max 1 (rect.height - first_h - 1) in
+        let divider_y = rect.y + first_h in
+        Terminal.move_to term ~row:divider_y ~col:rect.x;
+        Terminal.write_string term (String.make rect.width '-') Attr.default;
+        draw_dividers { rect with Frame.height = first_h } a;
+        draw_dividers { Frame.x = rect.x; y = divider_y + 1; width = rect.width; height = second_h } b
+    | Frame.Split (Frame.Vertical, ratio, a, b) ->
+        let first_w = max 1 (int_of_float (float rect.Frame.width *. ratio)) in
+        let first_w = min first_w (max 1 (rect.width - 1)) in
+        let second_w = max 1 (rect.width - first_w - 1) in
+        let divider_x = rect.x + first_w in
+        for y = rect.y to rect.y + rect.height - 1 do
+          Terminal.move_to term ~row:y ~col:divider_x;
+          Terminal.write_string term "|" Attr.default
+        done;
+        draw_dividers { rect with Frame.width = first_w } a;
+        draw_dividers { Frame.x = divider_x + 1; y = rect.y; width = second_w; height = rect.height } b
+  in
+
+  let frame_rect = { Frame.x = 0; y = 0; width = cols; height = frame_rows } in
+  List.iter render_window (Frame.layouts ~cols ~rows:frame_rows state.App.frame);
+  draw_dividers frame_rect state.App.frame.Frame.root;
+
   if state.App.mode = App.PromptMx && rows >= 2 then begin
     let completions =
       Registry.complete ~prefix:state.App.minibuf state.App.registry
@@ -155,18 +204,24 @@ let render term state =
     Terminal.clear_line term;
     Terminal.write_string term completion_text Attr.default
   end;
-  Terminal.move_to term ~row:(rows - 1) ~col:0;
-  Terminal.clear_line term;
-  Terminal.write_string term stext Attr.default;
 
-  (* 3. Position cursor relative to viewport *)
-  let relative_line = byte_line - state.App.scroll_top_line in
-  if relative_line >= 0 && relative_line < text_rows then begin
-    Terminal.move_to term ~row:relative_line ~col:(gutter + dcol);
-    Terminal.show_cursor term
-  end else begin
+  (* 3. Position cursor relative to focused window viewport *)
+  let focused_layout =
+    Frame.layouts ~cols ~rows:frame_rows state.App.frame
+    |> List.find_opt (fun (w, _) -> w.Frame.id = focused_id)
+  in
+  (match focused_layout with
+   | Some (window, rect) ->
+      let gutter = View.gutter_width ~line_count in
+      let relative_line = byte_line - window.Frame.scroll_top_line in
+      if relative_line >= 0 && relative_line < max 0 (rect.height - 1) then begin
+        Terminal.move_to term ~row:(rect.y + relative_line) ~col:(rect.x + gutter + dcol);
+        Terminal.show_cursor term
+      end else
+        Terminal.hide_cursor term
+   | None ->
     Terminal.hide_cursor term
-  end;
+  );
   Terminal.flush term
 
 let run_io _term state action =

@@ -1,4 +1,4 @@
 (library
  (name jeditor_core)
  (libraries jeditor_buffer jeditor_terminal)
- (modules app cursor core view keymap registry))
+ (modules app cursor core view keymap registry frame))

@@ -589,6 +589,56 @@ let test_query_replace_all () =
   Alcotest.(check bool) "mode Normal" true (st.mode = Normal);
   Alcotest.(check string) "all replaced" "bar bar bar" (Buffer.to_string st.buffer)
 
+(* ── ISSUE-015: window splitting ───────────────────────────────────── *)
+
+let test_window_split_dispatch () =
+  let st = fst (handle_key initial_state (Key.Ctrl 'x')) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char '2'))) in
+  Alcotest.(check int) "two windows" 2 (List.length (Frame.leaves st.frame));
+  let st = fst (handle_key st (Key.Ctrl 'x')) in
+  let st = fst (handle_key st (Key.Char (Uchar.of_char '3'))) in
+  Alcotest.(check int) "three windows" 3 (List.length (Frame.leaves st.frame))
+
+let test_window_focus_and_close () =
+  let st = upd initial_state SplitWindowHorizontal in
+  let first_focus = st.frame.focused in
+  let st = upd st FocusNextWindow in
+  Alcotest.(check bool) "focus changed" true (st.frame.focused <> first_focus);
+  let st = upd st CloseWindow in
+  Alcotest.(check int) "closed focused" 1 (List.length (Frame.leaves st.frame));
+  let st = upd st CloseWindow in
+  Alcotest.(check int) "last close no-op" 1 (List.length (Frame.leaves st.frame))
+
+let test_close_other_windows () =
+  let st = upd initial_state SplitWindowHorizontal in
+  let st = upd st SplitWindowVertical in
+  let focused = st.frame.focused in
+  let st = upd st CloseOtherWindows in
+  Alcotest.(check int) "one window" 1 (List.length (Frame.leaves st.frame));
+  Alcotest.(check int) "focused kept" focused st.frame.focused
+
+let test_focused_window_scroll_independent () =
+  let content = String.concat "\n" ["0"; "1"; "2"; "3"; "4"; "5"; "6"; "7"] in
+  let st = { (state_with_file ~path:"t" ~content) with rows = 4 } in
+  let st = upd st SplitWindowHorizontal in
+  let first = st.frame.focused in
+  let st = upd st (Move LineN) in
+  let st = upd st (Move LineN) in
+  let st = upd st (Move LineN) in
+  let first_scroll = (Frame.focused_window st.frame).scroll_top_line in
+  let st = upd st FocusNextWindow in
+  let second = Frame.focused_window st.frame in
+  Alcotest.(check bool) "first scrolled" true (first_scroll > 0);
+  Alcotest.(check bool) "different focus" true (second.id <> first);
+  Alcotest.(check int) "other window still top" 0 second.scroll_top_line
+
+let test_window_commands_in_registry () =
+  let names = Registry.names initial_state.registry in
+  List.iter (fun name ->
+    Alcotest.(check bool) ("registry has " ^ name) true (List.mem name names)
+  ) [ "split-window-below"; "split-window-right"; "other-window";
+      "delete-window"; "delete-other-windows" ]
+
 let () =
   let open Alcotest in
   run "App" [
@@ -676,5 +726,12 @@ let () =
       test_case "replace_prompts"        `Quick test_query_replace_prompts;
       test_case "replace_yes_no_quit"    `Quick test_query_replace_yes_no_quit;
       test_case "replace_all"            `Quick test_query_replace_all;
+    ];
+    "windows", [
+      test_case "split_dispatch"         `Quick test_window_split_dispatch;
+      test_case "focus_and_close"        `Quick test_window_focus_and_close;
+      test_case "close_others"           `Quick test_close_other_windows;
+      test_case "independent_scroll"     `Quick test_focused_window_scroll_independent;
+      test_case "commands_in_registry"   `Quick test_window_commands_in_registry;
     ];
   ]

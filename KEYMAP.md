@@ -48,6 +48,11 @@ can be overridden by adding a higher-priority layer to `app_state.keymap`.
 | `C-x C-s` | `save`     | Save current file                  |
 | `C-x C-w` | `save-as`  | Save as (prompts for filename)      |
 | `C-x C-c` | `quit`     | Quit (prompts if unsaved changes)  |
+| `C-x 2`   | `split-window-below` | Split focused window top/bottom |
+| `C-x 3`   | `split-window-right` | Split focused window left/right |
+| `C-x o`   | `other-window` | Cycle focus to next window      |
+| `C-x 0`   | `delete-window` | Close focused window            |
+| `C-x 1`   | `delete-other-windows` | Close all windows except focused |
 
 ## 5. Global
 

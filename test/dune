@@ -27,3 +27,8 @@
  (name test_registry)
  (modules test_registry)
  (libraries jeditor_core alcotest))
+
+(test
+ (name test_frame)
+ (modules test_frame)
+ (libraries jeditor_core alcotest))
