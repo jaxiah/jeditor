@@ -61,11 +61,18 @@ let key_of_win32_event (char_code, virtual_key, control_state) =
   | _ -> None
 
 module Input : Input_intf.S = struct
-  type t = { mutable pending_alt : bool }
+  type t = { mutable pending_alt : bool; mutable pending_esc : bool }
 
   let create () =
-    if enable_vt () then Ok { pending_alt = false }
+    if enable_vt () then Ok { pending_alt = false; pending_esc = false }
     else Error "Failed to enable virtual terminal processing"
+
+  (* Apply ESC/Meta prefix to a key, mirroring escape_parser.ml on Unix *)
+  let apply_meta = function
+    | Key.Char c    -> Key.Meta c
+    | Key.Ctrl c    -> Key.Ctrl_meta c
+    | Key.Backspace -> Key.Ctrl_meta 'h'
+    | other         -> other
 
   let rec next_key input =
     match read_key_event () with
@@ -82,8 +89,19 @@ module Input : Input_intf.S = struct
         in
         input.pending_alt <- is_alt_down && virtual_key = 0x12 && char_code = 0;
         (match key_of_win32_event effective_event with
-         | Some key -> Some key
-         | None -> next_key input)
+         | Some (Key.Ctrl '[') ->
+             (* ENABLE_VIRTUAL_TERMINAL_INPUT converts Alt+letter → ESC+letter.
+                ESC arrives as a char event (UnicodeChar=27, VK=0) → Key.Ctrl '['.
+                Buffer it and treat the next key as Meta-prefixed, exactly as
+                escape_parser.ml does on Unix. *)
+             input.pending_esc <- true;
+             next_key input
+         | result ->
+             let was_esc = input.pending_esc in
+             input.pending_esc <- false;
+             (match result with
+              | None     -> next_key input
+              | Some key -> Some (if was_esc then apply_meta key else key)))
 
   let close _ = disable_vt ()
 end

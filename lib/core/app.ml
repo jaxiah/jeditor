@@ -94,7 +94,7 @@ let state_with_file ~path ~content = {
 let prompt_action_of_key mode key =
   match mode with
   | PromptSaveAs -> (match key with
-      | Key.Enter                -> MinibufConfirm
+      | Key.Enter | Key.Ctrl 'm' -> MinibufConfirm
       | Key.Backspace
       | Key.Delete               -> MinibufBackspace
       | Key.Ctrl 'g'             -> MinibufCancel
@@ -106,7 +106,7 @@ let prompt_action_of_key mode key =
           Uchar.to_int c = Char.code 'Y' -> Quit
       | _                        -> MinibufCancel)
   | PromptGotoLine -> (match key with
-      | Key.Enter                -> MinibufConfirm
+      | Key.Enter | Key.Ctrl 'm' -> MinibufConfirm
       | Key.Backspace
       | Key.Delete               -> MinibufBackspace
       | Key.Ctrl 'g'             -> MinibufCancel
