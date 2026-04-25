@@ -14,13 +14,17 @@ Layering priority: buffer-local -> mode -> global. Plugins and user config add l
 
 ## Acceptance criteria
 
-- [ ] All commands from ISSUE-006 through ISSUE-010 continue to work after the hardcoded dispatch is removed
-- [ ] C-x prefix chains (C-x C-s, C-x C-c, etc.) resolve correctly across two key events
-- [ ] A binding in a higher-priority layer shadows the same binding in a lower-priority layer
-- [ ] A user can rebind any command to any key by providing a custom `Keymap.t` that overrides the global layer
-- [ ] Unbound keys display a brief "Key not bound" message in the status bar and do not crash
-- [ ] C-g in any pending-prefix state cancels the prefix and returns to normal dispatch
-- [ ] Alcotest suite covers: exact match, prefix resolution over two keys, shadowing, C-g cancels pending
+- [x] All commands from ISSUE-006 through ISSUE-010 continue to work after the hardcoded dispatch is removed
+- [x] C-x prefix chains (C-x C-s, C-x C-c, etc.) resolve correctly across two key events
+- [x] A binding in a higher-priority layer shadows the same binding in a lower-priority layer
+- [x] A user can rebind any command to any key by providing a custom `Keymap.t` that overrides the global layer
+- [x] Unbound keys display a brief "Key not bound" message in the status bar and do not crash
+- [x] C-g in any pending-prefix state cancels the prefix and returns to normal dispatch
+- [x] Alcotest suite covers: exact match, prefix resolution over two keys, shadowing, C-g cancels pending
+
+## Completed
+
+2026-04-25 — all acceptance criteria met. Implemented via TDD. New `Keymap` module (prefix trie + `emacs_default`). `App.handle_key` replaces hardcoded `action_of_key`. `PendingCx`/`PendingMg` modes removed; prefix state tracked in `pending_keys : Key.t list` in `app_state`. Pending prefix hint shown in status bar. 6 Keymap tests + 6 handle_key tests added (54 total).
 
 ## Blocked by
 

@@ -3,10 +3,8 @@ open Jeditor_terminal
 
 type mode =
   | Normal
-  | PendingCx
   | PromptSaveAs
   | ConfirmQuit
-  | PendingMg
   | PromptGotoLine
 
 type move_target =
@@ -23,7 +21,6 @@ type action =
   | Insert of Uchar.t
   | Backspace
   | Enter
-  | PendingCx
   | Save
   | StartSaveAs
   | TryQuit
@@ -39,7 +36,6 @@ type action =
   | DeleteForward
   | DeleteWordBack
   | KillLine
-  | JumpToLinePrompt
   | StartGotoLinePrompt
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
@@ -65,6 +61,8 @@ type app_state = {
   rows            : int;
   undo_stack      : snapshot list;
   redo_stack      : snapshot list;
+  pending_keys    : Key.t list;
+  keymap          : Keymap.t list;
 }
 
 let initial_state = {
@@ -79,8 +77,10 @@ let initial_state = {
   scroll_top_line = 0;
   cols      = 80;
   rows      = 24;
-  undo_stack = [];
-  redo_stack = [];
+  undo_stack   = [];
+  redo_stack   = [];
+  pending_keys = [];
+  keymap       = [Keymap.emacs_default];
 }
 
 let state_with_file ~path ~content = {
@@ -89,38 +89,8 @@ let state_with_file ~path ~content = {
   file_path = Some path;
 }
 
-let action_of_key mode key =
+let prompt_action_of_key mode key =
   match mode with
-  | Normal -> (match key with
-      | Key.Char c               -> Insert c
-      | Key.Backspace            -> Backspace
-      | Key.Delete               -> DeleteForward
-      | Key.Enter                -> Enter
-      | Key.Ctrl 'x'             -> PendingCx
-      | Key.Ctrl 'c'             -> TryQuit
-      | Key.Escape               -> Ignore
-      | Key.Ctrl 'f' | Key.Arrow `Right -> Move CharF
-      | Key.Ctrl 'b' | Key.Arrow `Left  -> Move CharB
-      | Key.Ctrl 'n' | Key.Arrow `Down  -> Move LineN
-      | Key.Ctrl 'p' | Key.Arrow `Up    -> Move LineP
-      | Key.Meta (c) when Uchar.to_char c = 'f' -> Move WordF
-      | Key.Meta (c) when Uchar.to_char c = 'b' -> Move WordB
-      | Key.Meta (c) when Uchar.to_char c = '<' -> Move BufStart
-      | Key.Meta (c) when Uchar.to_char c = '>' -> Move BufEnd
-      | Key.Ctrl 'a'             -> Move LineStart
-      | Key.Ctrl 'e'             -> Move LineEnd
-      | Key.Ctrl 'd'             -> DeleteForward
-      | Key.Ctrl 'k'             -> KillLine
-      | Key.Ctrl_meta 'h'        -> DeleteWordBack  (* ESC + Backspace = M-Backspace *)
-      | Key.Meta (c) when Uchar.to_char c = 'g' -> JumpToLinePrompt
-      | Key.Ctrl '/' | Key.Ctrl '_' -> Undo
-      | Key.Meta (c) when Uchar.to_char c = '_' -> Redo
-      | _                        -> Ignore)
-  | PendingCx -> (match key with
-      | Key.Ctrl 's'             -> Save
-      | Key.Ctrl 'w'             -> StartSaveAs
-      | Key.Ctrl 'c'             -> TryQuit
-      | _                        -> Ignore)
   | PromptSaveAs -> (match key with
       | Key.Enter                -> MinibufConfirm
       | Key.Backspace
@@ -133,9 +103,6 @@ let action_of_key mode key =
           Uchar.to_int c = Char.code 'y' ||
           Uchar.to_int c = Char.code 'Y' -> Quit
       | _                        -> MinibufCancel)
-  | PendingMg -> (match key with
-      | Key.Char c when Uchar.to_char c = 'g' -> StartGotoLinePrompt
-      | _                        -> Ignore)
   | PromptGotoLine -> (match key with
       | Key.Enter                -> MinibufConfirm
       | Key.Backspace
@@ -144,6 +111,33 @@ let action_of_key mode key =
       | Key.Char c when
           let i = Uchar.to_int c in i >= 48 && i <= 57 -> MinibufAppend c
       | _                        -> Ignore)
+  | Normal       -> Ignore  (* not a prompt mode *)
+
+let command_of_name name =
+  match name with
+  | "move-forward-char"    -> Move CharF
+  | "move-backward-char"   -> Move CharB
+  | "move-next-line"       -> Move LineN
+  | "move-prev-line"       -> Move LineP
+  | "move-forward-word"    -> Move WordF
+  | "move-backward-word"   -> Move WordB
+  | "move-line-start"      -> Move LineStart
+  | "move-line-end"        -> Move LineEnd
+  | "move-buf-start"       -> Move BufStart
+  | "move-buf-end"         -> Move BufEnd
+  | "delete-forward-char"  -> DeleteForward
+  | "backward-delete-char" -> Backspace
+  | "delete-word-back"     -> DeleteWordBack
+  | "kill-line"            -> KillLine
+  | "new-line"             -> Enter
+  | "save"                 -> Save
+  | "save-as"              -> StartSaveAs
+  | "quit"                 -> TryQuit
+  | "undo"                 -> Undo
+  | "redo"                 -> Redo
+  | "goto-line"            -> StartGotoLinePrompt
+  | "cancel"               -> Ignore
+  | _                      -> Ignore
 
 (** Return the byte length of the UTF-8 codepoint ending at [offset]. *)
 let utf8_char_length_before buf offset =
@@ -311,9 +305,7 @@ let rec update state action =
         { st with buffer; cursor; modified = true;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
       else st, Noop
-  (* ── M-g goto-line ──────────────────────────────────────────────── *)
-  | JumpToLinePrompt ->
-      { st with mode = PendingMg }, Noop
+  (* ── goto-line ──────────────────────────────────────────────────── *)
   | StartGotoLinePrompt ->
       { st with mode = PromptGotoLine; minibuf = "" }, Noop
   | JumpToLine n ->
@@ -321,9 +313,6 @@ let rec update state action =
       let line = max 0 (min (n - 1) (line_count - 1)) in
       let offset = Buffer.line_to_offset ~line st.buffer in
       { st with mode = Normal; minibuf = ""; cursor = Cursor.create offset }, Noop
-  (* ── C-x prefix ─────────────────────────────────────────────────── *)
-  | PendingCx ->
-      { st with mode = PendingCx }, Noop
   (* ── save ───────────────────────────────────────────────────────── *)
   | Save -> (match st.file_path with
       | Some path ->
@@ -366,7 +355,29 @@ let rec update state action =
   | Quit ->
       { st with quit = true }, Noop
   | Ignore ->
-      (* Also resets PendingCx if an unrecognised second key arrives *)
-      { st with mode = Normal }, Noop
+      st, Noop
   in
   (ensure_cursor_visible new_st, cmd)
+
+let handle_key state key =
+  match state.mode with
+  | PromptSaveAs | ConfirmQuit | PromptGotoLine ->
+      let action = prompt_action_of_key state.mode key in
+      update state action
+  | Normal ->
+      (* C-g with pending keys cancels the prefix *)
+      if state.pending_keys <> [] && key = Key.Ctrl 'g' then
+        { state with pending_keys = []; message = "" }, Noop
+      else
+        let keys = state.pending_keys @ [key] in
+        (match Keymap.lookup state.keymap keys with
+         | Keymap.Pending ->
+             { state with pending_keys = keys }, Noop
+         | Keymap.Matched cmd ->
+             let action = command_of_name cmd in
+             update { state with pending_keys = [] } action
+         | Keymap.Unbound ->
+             let st = { state with pending_keys = [] } in
+             (match key with
+              | Key.Char c -> update st (Insert c)
+              | _ -> { st with message = "Key not bound" }, Noop))

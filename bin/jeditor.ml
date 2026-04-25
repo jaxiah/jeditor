@@ -64,12 +64,13 @@ let render term state =
         "Save as: " ^ state.App.minibuf ^ "_"
     | App.ConfirmQuit ->
         "Unsaved changes \xe2\x80\x94 quit anyway? (y/n)"
-    | App.PendingMg ->
-        "M-g-"
     | App.PromptGotoLine ->
         "Go to line: " ^ state.App.minibuf ^ "_"
     | _ ->
-        if state.App.message <> "" then state.App.message
+        if state.App.pending_keys <> [] then
+          (* show accumulated prefix hint, e.g. "C-x ..." *)
+          String.concat " " (List.map (Format.asprintf "%a" Key.pp) state.App.pending_keys) ^ " ..."
+        else if state.App.message <> "" then state.App.message
         else View.status_text
           ~file_path:state.App.file_path
           ~modified:state.App.modified
@@ -142,8 +143,7 @@ let () =
           (* Potential EINTR from SIGWINCH on Unix, or EOF *)
           if not !needs_redraw then () 
       | Some key ->
-        let action = App.action_of_key !state.App.mode key in
-        let (new_state, cmd) = App.update !state action in
+        let (new_state, cmd) = App.handle_key !state key in
         let new_state = run_io term new_state cmd in
         state := new_state;
         if !state.App.quit then running := false

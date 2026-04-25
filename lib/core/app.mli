@@ -3,10 +3,8 @@ open Jeditor_terminal
 
 type mode =
   | Normal
-  | PendingCx
   | PromptSaveAs
   | ConfirmQuit
-  | PendingMg
   | PromptGotoLine
 
 type move_target =
@@ -20,38 +18,23 @@ type cmd =
   | WriteFile of { path : string; content : string }
 
 type action =
-  | Insert of Uchar.t
-  | Backspace
-  | Enter
-  | PendingCx
-  | Save
-  | StartSaveAs
-  | TryQuit
-  | MinibufAppend of Uchar.t
-  | MinibufBackspace
-  | MinibufConfirm
-  | MinibufCancel
-  | WriteDone of string
-  | WriteError of string
-  | Quit
-  | Ignore
+  | Insert of Uchar.t | Backspace | Enter
+  | Save | StartSaveAs | TryQuit
+  | MinibufAppend of Uchar.t | MinibufBackspace | MinibufConfirm | MinibufCancel
+  | WriteDone of string | WriteError of string | Quit | Ignore
   | Move of move_target
-  | DeleteForward
-  | DeleteWordBack
-  | KillLine
-  | JumpToLinePrompt
+  | DeleteForward | DeleteWordBack | KillLine
   | StartGotoLinePrompt
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
-  | Undo
-  | Redo
+  | Undo | Redo
 
-  type snapshot = {
+type snapshot = {
   buffer : Buffer.t;
   cursor : Cursor.t;
-  }
+}
 
-  type app_state = {
+type app_state = {
   buffer          : Buffer.t;
   cursor          : Cursor.t;
   quit            : bool;
@@ -65,9 +48,14 @@ type action =
   rows            : int;
   undo_stack      : snapshot list;
   redo_stack      : snapshot list;
-  }
+  pending_keys    : Key.t list;
+  keymap          : Keymap.t list;
+}
 
 val initial_state : app_state
 val state_with_file : path:string -> content:string -> app_state
-val action_of_key : mode -> Key.t -> action
 val update : app_state -> action -> app_state * cmd
+val handle_key : app_state -> Key.t -> app_state * cmd
+(** Dispatch a single key event. In prompt modes uses hardcoded per-mode
+    dispatch; in Normal mode looks up the key via the active keymap stack,
+    accumulating pending prefix keys as needed. *)

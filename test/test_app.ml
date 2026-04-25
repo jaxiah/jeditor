@@ -181,6 +181,50 @@ let test_undo_redo () =
   let st_no_redo = upd st_fork Redo in
   Alcotest.(check string) "redo does nothing after fork" "abz" (Buffer.to_string st_no_redo.buffer)
 
+(* ── ISSUE-011: handle_key tests ─────────────────────────────────────── *)
+
+let test_handle_key_self_insert () =
+  let (st, _) = App.handle_key initial_state (Key.Char (Uchar.of_char 'x')) in
+  Alcotest.(check string) "x inserted" "x" (Buffer.to_string st.buffer)
+
+let test_handle_key_command () =
+  (* C-f should move cursor forward *)
+  let st = state_with_file ~path:"t" ~content:"hello" in
+  let (st, _) = App.handle_key st (Key.Ctrl 'f') in
+  Alcotest.(check int) "cursor moved forward" 1 (Cursor.primary st.cursor).head
+
+let test_handle_key_prefix_then_command () =
+  (* C-x C-s should dispatch Save → WriteFile *)
+  let st = { (state_with_file ~path:"a.txt" ~content:"hi") with modified = true } in
+  let (st, _) = App.handle_key st (Key.Ctrl 'x') in
+  Alcotest.(check bool) "pending after C-x" true (st.pending_keys <> []);
+  let (_, cmd) = App.handle_key st (Key.Ctrl 's') in
+  (match cmd with
+   | App.WriteFile { path; _ } -> Alcotest.(check string) "save path" "a.txt" path
+   | App.Noop -> Alcotest.fail "expected WriteFile")
+
+let test_handle_key_cg_cancels_pending () =
+  let st = state_with_file ~path:"t" ~content:"hi" in
+  let (st, _) = App.handle_key st (Key.Ctrl 'x') in
+  Alcotest.(check bool) "pending after C-x" true (st.pending_keys <> []);
+  let (st, _) = App.handle_key st (Key.Ctrl 'g') in
+  Alcotest.(check bool) "pending cleared" true (st.pending_keys = []);
+  Alcotest.(check bool) "mode still Normal" true (st.mode = App.Normal)
+
+let test_handle_key_unbound_shows_message () =
+  (* F5 is not bound in emacs_default *)
+  let (st, _) = App.handle_key initial_state (Key.Function 5) in
+  Alcotest.(check bool) "message set" true (st.message <> "")
+
+let test_handle_key_user_rebind () =
+  let my_layer = Keymap.bind [Key.Ctrl 'f'] "backward-delete-char" Keymap.empty in
+  let st = { (state_with_file ~path:"t" ~content:"hello") with
+             cursor = Cursor.create 3;
+             keymap = [my_layer; Keymap.emacs_default] } in
+  let (st, _) = App.handle_key st (Key.Ctrl 'f') in
+  (* "backward-delete-char" deletes char before cursor, not moves forward *)
+  Alcotest.(check int) "cursor not moved forward" 2 (Cursor.primary st.cursor).head
+
 (* ── ISSUE-009 补充：DeleteWordBack + GotoLine ───────────────────────── *)
 
 let test_delete_word_back () =
@@ -198,24 +242,13 @@ let test_delete_word_back_at_start () =
   Alcotest.(check string) "unchanged" "hi" (Buffer.to_string st.buffer);
   Alcotest.(check int) "cursor unchanged" 0 (Cursor.primary st.cursor).head
 
-let test_goto_line_prompt_mode () =
-  (* M-g sets mode to PendingMg *)
-  let st = upd initial_state App.JumpToLinePrompt in
-  Alcotest.(check bool) "mode = PendingMg" true (st.mode = App.PendingMg)
-
-let test_pending_mg_g_opens_prompt () =
-  (* In PendingMg, pressing 'g' moves to PromptGotoLine *)
-  let st = { initial_state with mode = App.PendingMg } in
-  let action = App.action_of_key App.PendingMg (Key.Char (Uchar.of_char 'g')) in
-  let st = upd st action in
+let test_goto_line_via_handle_key () =
+  (* M-g g via handle_key enters PromptGotoLine *)
+  let st = state_with_file ~path:"t" ~content:"a\nb\nc" in
+  let (st, _) = App.handle_key st (Key.Meta (Uchar.of_char 'g')) in
+  Alcotest.(check bool) "pending after M-g" true (st.pending_keys <> []);
+  let (st, _) = App.handle_key st (Key.Char (Uchar.of_char 'g')) in
   Alcotest.(check bool) "mode = PromptGotoLine" true (st.mode = App.PromptGotoLine)
-
-let test_pending_mg_other_key_cancels () =
-  (* In PendingMg, pressing any other key returns to Normal *)
-  let st = { initial_state with mode = App.PendingMg } in
-  let action = App.action_of_key App.PendingMg (Key.Char (Uchar.of_char 'x')) in
-  let st = upd st action in
-  Alcotest.(check bool) "mode = Normal" true (st.mode = App.Normal)
 
 let test_goto_line_jump () =
   let content = "line1\nline2\nline3\nline4" in
@@ -268,14 +301,20 @@ let () =
     "history", [
       test_case "undo_redo"              `Quick test_undo_redo;
     ];
+    "handle_key", [
+      test_case "self_insert"            `Quick test_handle_key_self_insert;
+      test_case "command_dispatch"       `Quick test_handle_key_command;
+      test_case "prefix_then_command"    `Quick test_handle_key_prefix_then_command;
+      test_case "cg_cancels_pending"     `Quick test_handle_key_cg_cancels_pending;
+      test_case "unbound_shows_message"  `Quick test_handle_key_unbound_shows_message;
+      test_case "user_rebind"            `Quick test_handle_key_user_rebind;
+    ];
     "delete_word_back", [
       test_case "delete_word_back"       `Quick test_delete_word_back;
       test_case "delete_word_back_start" `Quick test_delete_word_back_at_start;
     ];
     "goto_line", [
-      test_case "prompt_sets_pending_mg" `Quick test_goto_line_prompt_mode;
-      test_case "pending_mg_g_opens"     `Quick test_pending_mg_g_opens_prompt;
-      test_case "pending_mg_cancel"      `Quick test_pending_mg_other_key_cancels;
+      test_case "goto_via_handle_key"    `Quick test_goto_line_via_handle_key;
       test_case "jump_to_line"           `Quick test_goto_line_jump;
       test_case "jump_clamp"             `Quick test_goto_line_clamp;
     ];
