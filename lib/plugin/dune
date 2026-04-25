@@ -1,3 +1,4 @@
 (library
  (name jeditor_plugin)
- (libraries jeditor_core))
+ (libraries jeditor_core jeditor_buffer jeditor_terminal dynlink)
+ (modules plugin_api plugin_loader))

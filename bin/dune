@@ -1,4 +1,4 @@
 (executable
  (name jeditor)
  (public_name jeditor)
- (libraries jeditor_core jeditor_terminal jeditor_buffer))
+ (libraries jeditor_core jeditor_terminal jeditor_buffer jeditor_plugin))

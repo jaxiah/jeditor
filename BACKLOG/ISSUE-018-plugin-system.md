@@ -14,17 +14,17 @@ Ship one non-trivial example plugin alongside the core (`plugins/line-highlight/
 
 ## Acceptance criteria
 
-- [ ] A `.cmxs` plugin file listed in the user config is loaded at startup via `Dynlink.loadfile`
-- [ ] A plugin can register a named command that appears in M-x
-- [ ] A plugin can bind its command to a keychord
-- [ ] A plugin can register hooks for: before-save, after-open, on-cursor-move
-- [ ] A plugin can read any buffer's content via `Plugin_api` accessors
-- [ ] A plugin can write (insert/delete) into any buffer via `Plugin_api` accessors, and the change is undoable
-- [ ] A plugin can read and set cursor positions
-- [ ] A plugin can display a message in the minibuffer
-- [ ] A plugin crash (raised exception) is caught and reported as a minibuffer error without taking down the editor
-- [ ] The example `line-highlight` plugin loads, activates, and visually highlights the cursor line
-- [ ] Plugin loading errors (file not found, signature mismatch) display a clear error message and skip the plugin without crashing
+- [x] A `.cmxs` plugin file listed in the user config is loaded at startup via `Dynlink.loadfile`
+- [x] A plugin can register a named command that appears in M-x
+- [x] A plugin can bind its command to a keychord
+- [x] A plugin can register hooks for: before-save, after-open, on-cursor-move
+- [x] A plugin can read any buffer's content via `Plugin_api` accessors
+- [x] A plugin can write (insert/delete) into any buffer via `Plugin_api` accessors, and the change is undoable
+- [x] A plugin can read and set cursor positions
+- [x] A plugin can display a message in the minibuffer
+- [x] A plugin crash (raised exception) is caught and reported as a minibuffer error without taking down the editor
+- [x] The example `line-highlight` plugin loads, activates, and visually highlights the cursor line
+- [x] Plugin loading errors (file not found, signature mismatch) display a clear error message and skip the plugin without crashing
 
 ## Blocked by
 
@@ -40,3 +40,7 @@ Ship one non-trivial example plugin alongside the core (`plugins/line-highlight/
 - User story 53 (plugin opens buffers/windows)
 - User story 54 (plugin displays minibuffer message)
 - User story 55 (plugin as compiled .cmxs)
+
+## Completed
+
+2026-04-26 — all acceptance criteria met. Implemented via TDD.

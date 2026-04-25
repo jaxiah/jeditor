@@ -1,0 +1,4 @@
+(library
+ (name jeditor_line_highlight)
+ (libraries jeditor_plugin)
+ (modes native))

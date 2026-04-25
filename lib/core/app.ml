@@ -100,7 +100,7 @@ type buffer_entry = {
 }
 
 type handler = app_state -> app_state * cmd
-
+and plugin_hook = app_state -> app_state
 and app_state = {
   buffer          : Buffer.t;
   cursor          : Cursor.t;
@@ -133,7 +133,18 @@ and app_state = {
   buffers         : buffer_entry list;
   current_buffer_id : int;
   next_buffer_id  : int;
+  before_save_hooks : plugin_hook list;
+  after_open_hooks : plugin_hook list;
+  on_cursor_move_hooks : plugin_hook list;
+  line_highlight_enabled : bool;
 }
+
+let run_plugin_hooks hooks st =
+  List.fold_left
+    (fun st hook ->
+      try hook st with exn ->
+        { st with message = "Plugin error: " ^ Printexc.to_string exn })
+    st hooks
 
 let basename path =
   match List.rev (String.split_on_char '/' (String.map (fun c -> if c = '\\' then '/' else c) path)) with
@@ -201,8 +212,10 @@ let open_file ~path ~content st =
           modified = false; undo_stack = []; redo_stack = [] }
       in
       let frame = Frame.set_focused_buffer ~buffer_id:id st.frame in
-      activate_buffer_entry entry
+      let st = activate_buffer_entry entry
         { st with buffers = st.buffers @ [entry]; next_buffer_id = id + 1; frame }
+      in
+      run_plugin_hooks st.after_open_hooks st
 
 let buffer_names st =
   st.buffers |> List.map (fun (b : buffer_entry) -> b.name) |> List.sort_uniq String.compare
@@ -772,7 +785,7 @@ let rec update state action =
           { Cursor.head; anchor = head })
         |> Cursor.of_list
       in
-      clear_kill_sequence { st with cursor }, Noop
+      run_plugin_hooks st.on_cursor_move_hooks (clear_kill_sequence { st with cursor }), Noop
   | DeleteForward ->
       let edits =
         Cursor.to_list st.cursor
@@ -890,6 +903,7 @@ let rec update state action =
   (* ── save ───────────────────────────────────────────────────────── *)
   | Save -> (match st.file_path with
       | Some path ->
+          let st = run_plugin_hooks st.before_save_hooks st in
           let content = Buffer.to_string st.buffer in
           clear_kill_sequence { st with mode = Normal }, WriteFile { path; content }
       | None ->
@@ -1114,6 +1128,10 @@ let initial_state = {
   ];
   current_buffer_id = 0;
   next_buffer_id = 1;
+  before_save_hooks = [];
+  after_open_hooks = [];
+  on_cursor_move_hooks = [];
+  line_highlight_enabled = false;
 }
 
 let state_with_file ~path ~content =
@@ -1145,8 +1163,12 @@ let handle_key state key =
          | Keymap.Pending ->
              { state with pending_keys = keys }, Noop
          | Keymap.Matched cmd ->
-             let action = command_of_name cmd in
-             update { state with pending_keys = [] } action
+             let st = { state with pending_keys = [] } in
+             (match Registry.lookup cmd st.registry with
+              | Some handler -> handler st
+              | None ->
+                  let action = command_of_name cmd in
+                  update st action)
          | Keymap.Unbound ->
              let st = { state with pending_keys = [] } in
              (match key with

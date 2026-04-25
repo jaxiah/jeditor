@@ -66,7 +66,7 @@ type buffer_entry = {
 }
 
 type handler = app_state -> app_state * cmd
-
+and plugin_hook = app_state -> app_state
 and app_state = {
   buffer          : Buffer.t;
   cursor          : Cursor.t;
@@ -99,6 +99,10 @@ and app_state = {
   buffers         : buffer_entry list;
   current_buffer_id : int;
   next_buffer_id  : int;
+  before_save_hooks : plugin_hook list;
+  after_open_hooks : plugin_hook list;
+  on_cursor_move_hooks : plugin_hook list;
+  line_highlight_enabled : bool;
 }
 
 val initial_state : app_state

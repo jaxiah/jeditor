@@ -1,6 +1,7 @@
 open Jeditor_terminal
 open Jeditor_core
 open Jeditor_buffer
+open Jeditor_plugin
 
 let needs_redraw = ref false
 
@@ -136,8 +137,16 @@ let render term state =
         Terminal.move_to term ~row:(rect.y + i) ~col:rect.x;
         Terminal.clear_line term;
         if buffer_line_idx < line_count then begin
+          let line_attr =
+            let cursor_line, _ =
+              Buffer.offset_to_line_col ~offset:(Cursor.primary cursor).head buffer
+            in
+            if state.App.line_highlight_enabled && buffer_line_idx = cursor_line then
+              { Attr.default with Attr.bg = Attr.Bright `Black }
+            else Attr.default
+          in
           let gtext = Printf.sprintf "%*d " (gutter - 1) (buffer_line_idx + 1) in
-          Terminal.write_string term gtext Attr.default;
+          Terminal.write_string term gtext line_attr;
           let line_start = Buffer.line_to_offset ~line:buffer_line_idx buffer in
           let next_line_start =
             if buffer_line_idx + 1 < line_count
@@ -158,7 +167,7 @@ let render term state =
             if String.length full_line > text_cols then String.sub full_line 0 text_cols
             else full_line
           in
-          write_with_selection ~line_start truncated Attr.default
+          write_with_selection ~line_start truncated line_attr
         end
       done;
       let status_attr =
@@ -257,6 +266,15 @@ let run_io _term state action =
         fst (App.update state (App.WriteError (Printexc.to_string exn))))
   | App.Noop -> state
 
+let plugin_paths_from_env () =
+  match Sys.getenv_opt "JEDITOR_PLUGINS" with
+  | None | Some "" -> []
+  | Some paths ->
+      let sep = if Sys.win32 then ';' else ':' in
+      paths
+      |> String.split_on_char sep
+      |> List.filter (fun path -> String.trim path <> "")
+
 let () =
   let term = Terminal.create () |> Result.get_ok in
   let input = Input.create () |> Result.get_ok in
@@ -277,6 +295,7 @@ let () =
               App.message = "Error opening file: " ^ Printexc.to_string exn })
       | _ -> App.initial_state)
     in
+    state := Plugin_loader.load_paths (plugin_paths_from_env ()) !state;
     (* Initial resize sync *)
     let (c, r) = Terminal.size term in
     let (new_st, _) = App.update !state (App.Resize { cols = c; rows = r }) in
