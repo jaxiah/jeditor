@@ -58,10 +58,16 @@ let test_emacs_default () =
   check [Key.Ctrl 's']              "isearch-forward";
   check [Key.Ctrl 'r']              "isearch-backward";
   check [Key.Ctrl 'x'; Key.Ctrl 's'] "save";
+  check [Key.Ctrl 'x'; Key.Ctrl 'c'] "quit";
   check [Key.Ctrl 'x'; Key.Char (Uchar.of_char '2')] "split-window-below";
   check [Key.Ctrl 'x'; Key.Char (Uchar.of_char '3')] "split-window-right";
   check [Key.Meta (Uchar.of_char 'g'); Key.Char (Uchar.of_char 'g')] "goto-line";
   check [Key.Meta (Uchar.of_char 'g'); Key.Meta (Uchar.of_char 'g')] "goto-line"
+
+let test_bare_ctrl_c_is_not_quit () =
+  Alcotest.(check bool) "bare C-c is unbound"
+    true
+    (Keymap.lookup [Keymap.emacs_default] [Key.Ctrl 'c'] = Keymap.Unbound)
 
 let () =
   let open Alcotest in
@@ -75,5 +81,6 @@ let () =
     ];
     "emacs_default", [
       test_case "spot_checks"      `Quick test_emacs_default;
+      test_case "bare_ctrl_c_is_not_quit" `Quick test_bare_ctrl_c_is_not_quit;
     ];
   ]

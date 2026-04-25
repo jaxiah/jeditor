@@ -306,6 +306,8 @@ let plugin_paths_from_env () =
 let () =
   let term = Terminal.create () |> Result.get_ok in
   let input = Input.create () |> Result.get_ok in
+  Terminal.enter_alt_screen term;
+  Terminal.flush term;
   let cleanup () =
     Terminal.close term;
     Input.close input

@@ -3,6 +3,8 @@ module type S = sig
 
   val create      : unit -> (t, string) result
   val size        : t -> int * int
+  val enter_alt_screen : t -> unit
+  val leave_alt_screen : t -> unit
   val move_to     : t -> row:int -> col:int -> unit
   val hide_cursor : t -> unit
   val show_cursor : t -> unit

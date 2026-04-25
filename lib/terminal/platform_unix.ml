@@ -41,6 +41,9 @@ module Terminal : Terminal_intf.S = struct
 
   let size _ = get_term_size ()
 
+  let enter_alt_screen t = Buffer.add_string t "\x1b[?1049h"
+  let leave_alt_screen t = Buffer.add_string t "\x1b[?1049l"
+
   let move_to t ~row ~col =
     Printf.bprintf t "\x1b[%d;%dH" (row + 1) (col + 1)
 
@@ -102,6 +105,7 @@ module Terminal : Terminal_intf.S = struct
     Buffer.clear t
 
   let close t =
+    leave_alt_screen t;
     show_cursor t;
     flush t
 end

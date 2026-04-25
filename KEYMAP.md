@@ -58,7 +58,6 @@ can be overridden by adding a higher-priority layer to `app_state.keymap`.
 
 | Key      | Command                    | Description                            |
 | -------- | -------------------------- | -------------------------------------- |
-| `C-c`    | `quit`                     | Quit (prompts if unsaved changes)      |
 | `C-s`    | `isearch-forward`          | Incremental search forward             |
 | `C-r`    | `isearch-backward`         | Incremental search backward            |
 | `C-g`    | `cancel`                   | Cancel prompt or pending prefix        |

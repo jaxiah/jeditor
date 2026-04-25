@@ -87,7 +87,6 @@ let emacs_default =
   |> bind [m '_']                 "redo"
   |> bind [Key.Ctrl 'g']          "cancel"
   |> bind [Key.Escape]            "cancel"
-  |> bind [Key.Ctrl 'c']          "quit"
   |> bind [Key.Ctrl 's']          "isearch-forward"
   |> bind [Key.Ctrl 'r']          "isearch-backward"
   |> bind [Key.Ctrl 'x'; Key.Ctrl 's'] "save"
