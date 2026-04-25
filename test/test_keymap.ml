@@ -59,6 +59,7 @@ let test_emacs_default () =
   check [Key.Ctrl 'r']              "isearch-backward";
   check [Key.Ctrl 'x'; Key.Ctrl 's'] "save";
   check [Key.Ctrl 'x'; Key.Ctrl 'c'] "quit";
+  check [Key.Ctrl 'x'; Key.Char (Uchar.of_char 'u')] "undo";
   check [Key.Ctrl 'x'; Key.Char (Uchar.of_char '2')] "split-window-below";
   check [Key.Ctrl 'x'; Key.Char (Uchar.of_char '3')] "split-window-right";
   check [Key.Meta (Uchar.of_char 'g'); Key.Char (Uchar.of_char 'g')] "goto-line";

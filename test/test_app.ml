@@ -423,6 +423,32 @@ let test_mx_tab_lcp () =
   Alcotest.(check string) "minibuf extended to LCP"
     "move-forward-" st.minibuf
 
+let test_mx_ctrl_h_deletes_prompt_char () =
+  let st = fst (handle_key initial_state key_mx) in
+  let type_keys s st =
+    String.fold_left
+      (fun st c -> fst (handle_key st (Key.Char (Uchar.of_char c))))
+      st s
+  in
+  let st = type_keys "movx" st in
+  let st = fst (handle_key st (Key.Ctrl 'h')) in
+  Alcotest.(check string) "C-h deletes last minibuffer char" "mov" st.minibuf;
+  let st = fst (handle_key st Key.Backspace) in
+  Alcotest.(check string) "Backspace also deletes" "mo" st.minibuf
+
+let test_mx_del_char_deletes_prompt_char () =
+  let st = fst (handle_key initial_state key_mx) in
+  let type_keys s st =
+    String.fold_left
+      (fun st c -> fst (handle_key st (Key.Char (Uchar.of_char c))))
+      st s
+  in
+  let st = type_keys "movx" st in
+  let st = fst (handle_key st (Key.Char (Uchar.of_int 0x7f))) in
+  Alcotest.(check string) "DEL char deletes last minibuffer char" "mov" st.minibuf;
+  let st = fst (handle_key st (Key.Char (Uchar.of_int 0x08))) in
+  Alcotest.(check string) "BS char also deletes" "mo" st.minibuf
+
 (* ── ISSUE-013: selection / clipboard ──────────────────────────────── *)
 
 let test_mark_toggle () =
@@ -841,6 +867,8 @@ let () =
       test_case "register_new_command"   `Quick test_mx_register_new_command;
       test_case "all_builtins_reachable" `Quick test_mx_all_builtins_reachable;
       test_case "tab_lcp"                `Quick test_mx_tab_lcp;
+      test_case "ctrl_h_deletes_prompt_char" `Quick test_mx_ctrl_h_deletes_prompt_char;
+      test_case "del_char_deletes_prompt_char" `Quick test_mx_del_char_deletes_prompt_char;
     ];
     "selection_clipboard", [
       test_case "mark_toggle"            `Quick test_mark_toggle;

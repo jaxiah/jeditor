@@ -84,6 +84,7 @@ let emacs_default =
   |> bind [Key.Ctrl 'm']         "new-line"
   |> bind [Key.Ctrl '/']          "undo"
   |> bind [Key.Ctrl '_']          "undo"
+  |> bind [Key.Ctrl 'x'; Key.Char (Uchar.of_char 'u')] "undo"
   |> bind [m '_']                 "redo"
   |> bind [Key.Ctrl 'g']          "cancel"
   |> bind [Key.Escape]            "cancel"

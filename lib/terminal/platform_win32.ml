@@ -45,6 +45,7 @@ let key_of_win32_event (char_code, virtual_key, control_state) =
   | 0x09, _ -> Some Key.Tab
   | 0x08, _ when alt && ctrl -> Some (Key.Ctrl_meta 'h')
   | 0x08, _ -> Some Key.Backspace
+  | _, 0x7F -> Some Key.Backspace
   | vk, _ when vk >= 0x70 && vk <= 0x7B -> Some (Key.Function (vk - 0x6F))
   | vk, 0 when alt && vk >= 0x41 && vk <= 0x5A ->
       Some (Key.Meta (Uchar.of_char (char_of_int (vk + 32))))

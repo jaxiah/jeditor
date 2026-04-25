@@ -36,10 +36,10 @@ can be overridden by adding a higher-priority layer to `app_state.keymap`.
 
 ## 3. Undo / Redo
 
-| Key           | Command | Description                       |
-| ------------- | ------- | --------------------------------- |
-| `C-/` / `C-_` | `undo`  | Undo last buffer-modifying action |
-| `M-_`         | `redo`  | Redo last undone action           |
+| Key                     | Command | Description                       |
+| ----------------------- | ------- | --------------------------------- |
+| `C-/` / `C-_` / `C-x u` | `undo`  | Undo last buffer-modifying action |
+| `M-_`                   | `redo`  | Redo last undone action           |
 
 ## 4. File Operations (C-x prefix)
 

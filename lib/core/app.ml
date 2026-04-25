@@ -287,14 +287,28 @@ let kill_buffer_name ?(force=false) name st =
       if st.current_buffer_id = target.id then activate_buffer_entry replacement st else st
 
 let prompt_action_of_key mode key =
+  let is_backspace = function
+    | Key.Backspace | Key.Delete | Key.Ctrl 'h' -> true
+    | Key.Char c ->
+        let code = Uchar.to_int c in
+        code = 0x08 || code = 0x7f
+    | _ -> false
+  in
+  let is_prompt_char c =
+    let code = Uchar.to_int c in
+    code >= 0x20 && code <> 0x7f
+  in
+  let prompt_text_action key =
+    match key with
+    | Key.Enter | Key.Ctrl 'm' -> MinibufConfirm
+    | key when is_backspace key -> MinibufBackspace
+    | Key.Ctrl 'g' -> MinibufCancel
+    | Key.Tab | Key.Ctrl 'i' -> MinibufTab
+    | Key.Char c when is_prompt_char c -> MinibufAppend c
+    | _ -> Ignore
+  in
   match mode with
-  | PromptSaveAs -> (match key with
-      | Key.Enter | Key.Ctrl 'm' -> MinibufConfirm
-      | Key.Backspace
-      | Key.Delete               -> MinibufBackspace
-      | Key.Ctrl 'g'             -> MinibufCancel
-      | Key.Char c               -> MinibufAppend c
-      | _                        -> Ignore)
+  | PromptSaveAs -> prompt_text_action key
   | ConfirmQuit -> (match key with
       | Key.Char c when
           Uchar.to_int c = Char.code 'y' ||
@@ -302,43 +316,28 @@ let prompt_action_of_key mode key =
       | _                        -> MinibufCancel)
   | PromptGotoLine -> (match key with
       | Key.Enter | Key.Ctrl 'm' -> MinibufConfirm
-      | Key.Backspace
-      | Key.Delete               -> MinibufBackspace
+      | key when is_backspace key -> MinibufBackspace
       | Key.Ctrl 'g'             -> MinibufCancel
       | Key.Char c when
           let i = Uchar.to_int c in i >= 48 && i <= 57 -> MinibufAppend c
       | _                        -> Ignore)
-  | PromptMx -> (match key with
-      | Key.Enter | Key.Ctrl 'm' -> MinibufConfirm
-      | Key.Backspace
-      | Key.Delete               -> MinibufBackspace
-      | Key.Ctrl 'g'             -> MinibufCancel
-      | Key.Tab | Key.Ctrl 'i'   -> MinibufTab
-      | Key.Char c               -> MinibufAppend c
-      | _                        -> Ignore)
+  | PromptMx -> prompt_text_action key
   | PromptSearch -> (match key with
       | Key.Enter | Key.Ctrl 'm' -> SearchConfirm
-      | Key.Backspace
-      | Key.Delete               -> MinibufBackspace
+      | key when is_backspace key -> MinibufBackspace
       | Key.Ctrl 'g'             -> SearchCancel
       | Key.Ctrl 's'             -> SearchNext `Forward
       | Key.Ctrl 'r'             -> SearchNext `Backward
-      | Key.Char c               -> MinibufAppend c
+      | Key.Char c when is_prompt_char c -> MinibufAppend c
       | _                        -> Ignore)
-  | PromptReplaceSearch -> (match key with
-      | Key.Enter | Key.Ctrl 'm' -> QueryReplaceConfirmSearch
-      | Key.Backspace
-      | Key.Delete               -> MinibufBackspace
-      | Key.Ctrl 'g'             -> QueryReplaceQuit
-      | Key.Char c               -> MinibufAppend c
-      | _                        -> Ignore)
-  | PromptReplaceWith -> (match key with
-      | Key.Enter | Key.Ctrl 'm' -> QueryReplaceConfirmReplacement
-      | Key.Backspace
-      | Key.Delete               -> MinibufBackspace
-      | Key.Ctrl 'g'             -> QueryReplaceQuit
-      | Key.Char c               -> MinibufAppend c
-      | _                        -> Ignore)
+  | PromptReplaceSearch -> (match prompt_text_action key with
+      | MinibufConfirm -> QueryReplaceConfirmSearch
+      | MinibufCancel -> QueryReplaceQuit
+      | action -> action)
+  | PromptReplaceWith -> (match prompt_text_action key with
+      | MinibufConfirm -> QueryReplaceConfirmReplacement
+      | MinibufCancel -> QueryReplaceQuit
+      | action -> action)
   | PromptReplaceConfirm -> (match key with
       | Key.Char c when Uchar.to_int c = Char.code 'y' -> QueryReplaceYes
       | Key.Char c when Uchar.to_int c = Char.code 'n' -> QueryReplaceNo
@@ -346,22 +345,8 @@ let prompt_action_of_key mode key =
       | Key.Char c when Uchar.to_int c = Char.code 'q' -> QueryReplaceQuit
       | Key.Ctrl 'g'             -> QueryReplaceQuit
       | _                        -> Ignore)
-  | PromptSwitchBuffer -> (match key with
-      | Key.Enter | Key.Ctrl 'm' -> MinibufConfirm
-      | Key.Backspace
-      | Key.Delete               -> MinibufBackspace
-      | Key.Ctrl 'g'             -> MinibufCancel
-      | Key.Tab | Key.Ctrl 'i'   -> MinibufTab
-      | Key.Char c               -> MinibufAppend c
-      | _                        -> Ignore)
-  | PromptKillBuffer -> (match key with
-      | Key.Enter | Key.Ctrl 'm' -> MinibufConfirm
-      | Key.Backspace
-      | Key.Delete               -> MinibufBackspace
-      | Key.Ctrl 'g'             -> MinibufCancel
-      | Key.Tab | Key.Ctrl 'i'   -> MinibufTab
-      | Key.Char c               -> MinibufAppend c
-      | _                        -> Ignore)
+  | PromptSwitchBuffer -> prompt_text_action key
+  | PromptKillBuffer -> prompt_text_action key
   | ConfirmKillBuffer -> (match key with
       | Key.Char c when Uchar.to_int c = Char.code 'y' || Uchar.to_int c = Char.code 'Y' ->
           KillBufferConfirmed
