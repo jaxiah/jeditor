@@ -34,6 +34,7 @@ type action =
   | DeleteForward | DeleteWordBack | DeleteWordForward | KillLine
   | StartGotoLinePrompt | StartMx
   | ToggleMark | KillRegion | CopyRegion | Yank | Cancel
+  | AddNextOccurrence | AddCursorBelow
   | StartSearch of [ `Forward | `Backward ]
   | SearchNext of [ `Forward | `Backward ]
   | SearchConfirm | SearchCancel | StartQueryReplace

@@ -52,6 +52,8 @@ type action =
   | CopyRegion
   | Yank
   | Cancel
+  | AddNextOccurrence
+  | AddCursorBelow
   | StartSearch of [ `Forward | `Backward ]
   | SearchNext of [ `Forward | `Backward ]
   | SearchConfirm
@@ -384,6 +386,8 @@ let command_of_name name =
   | "kill-region"          -> KillRegion
   | "copy-region"          -> CopyRegion
   | "yank"                 -> Yank
+  | "add-next-occurrence"  -> AddNextOccurrence
+  | "add-cursor-below"     -> AddCursorBelow
   | "isearch-forward"      -> StartSearch `Forward
   | "isearch-backward"     -> StartSearch `Backward
   | "query-replace"        -> StartQueryReplace
@@ -444,6 +448,20 @@ let region_bounds st =
       if head = mark then None
       else Some (min mark head, max mark head)
 
+let range_start (r : Cursor.range) = min r.head r.anchor
+let range_stop (r : Cursor.range) = max r.head r.anchor
+
+let selected_text st =
+  match region_bounds st with
+  | Some (start, stop) -> Some (Buffer.slice ~start ~length:(stop - start) st.buffer)
+  | None ->
+      (match Cursor.primary st.cursor with
+       | r when r.head <> r.anchor ->
+           let start = range_start r in
+           let stop = range_stop r in
+           Some (Buffer.slice ~start ~length:(stop - start) st.buffer)
+       | _ -> None)
+
 let clear_kill_sequence st = { st with last_action_was_kill = false }
 
 let with_kill_ring ~killed st =
@@ -454,6 +472,38 @@ let with_kill_ring ~killed st =
       Some killed
   in
   { st with kill_ring; last_action_was_kill = true }
+
+let apply_insert_all text st =
+  let ranges = Cursor.to_list st.cursor |> List.sort (fun a b -> compare (range_start a) (range_start b)) in
+  let inserted = String.length text in
+  let buffer, cursor, _shift =
+    List.fold_left
+      (fun (buffer, cursor, shift) range ->
+        let start = range_start range + shift in
+        let stop = range_stop range + shift in
+        let deleted = stop - start in
+        let buffer =
+          if deleted > 0 then Buffer.delete ~offset:start ~length:deleted buffer else buffer
+        in
+        let buffer = Buffer.insert ~offset:start text buffer in
+        let cursor = Cursor.apply_edit ~offset:start ~deleted ~inserted cursor in
+        buffer, cursor, shift + inserted - deleted)
+      (st.buffer, st.cursor, 0) ranges
+  in
+  buffer, cursor
+
+let apply_delete_ranges edits st =
+  let edits = List.sort (fun (a, _) (b, _) -> compare a b) edits in
+  let buffer, cursor, _shift =
+    List.fold_left
+      (fun (buffer, cursor, shift) (offset, length) ->
+        let offset = offset + shift in
+        let buffer = Buffer.delete ~offset ~length buffer in
+        let cursor = Cursor.apply_edit ~offset ~deleted:length ~inserted:0 cursor in
+        buffer, cursor, shift - length)
+      (st.buffer, st.cursor, 0) edits
+  in
+  buffer, cursor
 
 let search_is_smart_case_insensitive query =
   not (String.exists (fun c -> c >= 'A' && c <= 'Z') query)
@@ -479,6 +529,46 @@ let find_all_matches ~query buffer =
         loop (offset + 1) acc
     in
     loop 0 []
+
+let add_next_occurrence st =
+  match selected_text st with
+  | None | Some "" -> st
+  | Some query ->
+      let matches = find_all_matches ~query st.buffer in
+      let after =
+        Cursor.to_list st.cursor
+        |> List.fold_left (fun acc r -> max acc (range_stop r)) (primary_head st)
+      in
+      let candidate =
+        matches
+        |> List.find_opt (fun (start, _) ->
+          start >= after
+          && not (List.exists (fun r -> range_start r = start) (Cursor.to_list st.cursor)))
+      in
+      (match candidate with
+       | None -> st
+       | Some (start, stop) ->
+           let cursor = Cursor.add { Cursor.head = stop; anchor = start } st.cursor in
+           { st with cursor })
+
+let add_cursor_below st =
+  let ranges = Cursor.to_list st.cursor in
+  let bottom =
+    List.fold_left
+      (fun acc r -> if r.Cursor.head > acc.Cursor.head then r else acc)
+      (Cursor.primary st.cursor) ranges
+  in
+  let line, col = Buffer.offset_to_line_col ~offset:bottom.Cursor.head st.buffer in
+  if line + 1 >= Buffer.line_count st.buffer then st
+  else
+    let next_line_start = Buffer.line_to_offset ~line:(line + 1) st.buffer in
+    let next_line_end =
+      if line + 2 < Buffer.line_count st.buffer then
+        Buffer.line_to_offset ~line:(line + 2) st.buffer - 1
+      else Buffer.length st.buffer
+    in
+    let head = min (next_line_start + col) next_line_end in
+    { st with cursor = Cursor.add { Cursor.head; anchor = head } st.cursor }
 
 let choose_match ~from ~direction matches =
   match matches with
@@ -610,37 +700,36 @@ let rec update state action =
       let b = Stdlib.Buffer.create 4 in
       Stdlib.Buffer.add_utf_8_uchar b c;
       let s = Stdlib.Buffer.contents b in
-      let offset = (Cursor.primary st.cursor).head in
-      let buffer = Buffer.insert ~offset s st.buffer in
-      let inserted = String.length s in
-      let cursor = Cursor.apply_edit ~offset ~deleted:0 ~inserted st.cursor in
+      let buffer, cursor = apply_insert_all s st in
       { st with buffer; cursor; modified = true; mark = None; last_action_was_kill = false;
                 undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
   | Backspace ->
-      let offset = (Cursor.primary st.cursor).head in
-      if offset > 0 then
+      let edits =
+        Cursor.to_list st.cursor
+        |> List.filter_map (fun (range : Cursor.range) ->
+          if range.head <> range.anchor then
+            Some (range_start range, range_stop range - range_start range)
+          else if range.head > 0 then
+            let char_len = utf8_char_length_before st.buffer range.head in
+            Some (range.head - char_len, char_len)
+          else None)
+      in
+      if edits <> [] then
         let snap = take_snapshot st in
-        let char_len = utf8_char_length_before st.buffer offset in
-        let edit_offset = offset - char_len in
-        let buffer = Buffer.delete ~offset:edit_offset ~length:char_len st.buffer in
-        let cursor = Cursor.apply_edit ~offset:edit_offset ~deleted:char_len ~inserted:0 st.cursor in
+        let buffer, cursor = apply_delete_ranges edits st in
         { st with buffer; cursor; modified = true; mark = None; last_action_was_kill = false;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
       else
         clear_kill_sequence st, Noop
   | Enter ->
       let snap = take_snapshot st in
-      let offset = (Cursor.primary st.cursor).head in
-      let buffer = Buffer.insert ~offset "\n" st.buffer in
-      let cursor = Cursor.apply_edit ~offset ~deleted:0 ~inserted:1 st.cursor in
+      let buffer, cursor = apply_insert_all "\n" st in
       { st with buffer; cursor; modified = true; mark = None; last_action_was_kill = false;
                 undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
   (* ── navigation ─────────────────────────────────────────────────── *)
   | Move target ->
       let buf = st.buffer in
-      let cur = Cursor.primary st.cursor in
-      let head = cur.head in
-      let new_head = match target with
+      let move_head head = match target with
         | CharF -> min (Buffer.length buf) (head + utf8_char_length_at buf head)
         | CharB -> max 0 (head - utf8_char_length_before buf head)
         | LineN ->
@@ -676,14 +765,27 @@ let rec update state action =
         | BufStart -> 0
         | BufEnd -> Buffer.length buf
       in
-      clear_kill_sequence { st with cursor = Cursor.create new_head }, Noop
+      let cursor =
+        Cursor.to_list st.cursor
+        |> List.map (fun r ->
+          let head = move_head r.Cursor.head in
+          { Cursor.head; anchor = head })
+        |> Cursor.of_list
+      in
+      clear_kill_sequence { st with cursor }, Noop
   | DeleteForward ->
-      let offset = (Cursor.primary st.cursor).head in
-      let char_len = utf8_char_length_at st.buffer offset in
-      if char_len > 0 then
+      let edits =
+        Cursor.to_list st.cursor
+        |> List.filter_map (fun (range : Cursor.range) ->
+          if range.head <> range.anchor then
+            Some (range_start range, range_stop range - range_start range)
+          else
+            let char_len = utf8_char_length_at st.buffer range.head in
+            if char_len > 0 then Some (range.head, char_len) else None)
+      in
+      if edits <> [] then
         let snap = take_snapshot st in
-        let buffer = Buffer.delete ~offset ~length:char_len st.buffer in
-        let cursor = Cursor.apply_edit ~offset ~deleted:char_len ~inserted:0 st.cursor in
+        let buffer, cursor = apply_delete_ranges edits st in
         { st with buffer; cursor; modified = true; mark = None; last_action_was_kill = false;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
       else clear_kill_sequence st, Noop
@@ -770,6 +872,10 @@ let rec update state action =
            { st with buffer; cursor; mark = None; modified = true;
                      last_action_was_kill = false;
                      undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop)
+  | AddNextOccurrence ->
+      clear_kill_sequence (add_next_occurrence st), Noop
+  | AddCursorBelow ->
+      clear_kill_sequence (add_cursor_below st), Noop
   (* ── M-x ────────────────────────────────────────────────────────── *)
   | StartMx ->
       clear_kill_sequence { st with mode = PromptMx; minibuf = "" }, Noop
@@ -858,7 +964,9 @@ let rec update state action =
   | Quit ->
       clear_kill_sequence { st with quit = true }, Noop
   | Cancel ->
-      { st with mark = None; message = ""; last_action_was_kill = false }, Noop
+      let primary = Cursor.primary st.cursor in
+      { st with mark = None; message = ""; last_action_was_kill = false;
+                cursor = Cursor.create primary.head }, Noop
   | StartSearch direction ->
       let origin = primary_head st in
       { (clear_kill_sequence st) with mode = PromptSearch; minibuf = "";
@@ -960,6 +1068,7 @@ let default_registry =
     "kill-word-forward"; "kill-line"; "new-line"; "save"; "save-as";
     "quit"; "undo"; "redo"; "goto-line"; "execute-extended-command";
     "set-mark-command"; "kill-region"; "copy-region"; "yank";
+    "add-next-occurrence"; "add-cursor-below";
     "isearch-forward"; "isearch-backward"; "query-replace";
     "split-window-below"; "split-window-right"; "other-window";
     "delete-window"; "delete-other-windows"; "switch-to-buffer";

@@ -33,6 +33,13 @@ let render term state =
     | None, true -> state.App.search_matches
     | None, false -> []
   in
+  let cursor_highlights =
+    Cursor.to_list state.App.cursor
+    |> List.map (fun (range : Cursor.range) ->
+      let head = range.head in
+      (head, min (Buffer.length state.App.buffer) (head + 1)))
+  in
+  let highlight_ranges = highlight_ranges @ cursor_highlights in
   let selection_attr = { Attr.default with Attr.reverse = true } in
   let write_with_selection ~line_start text attr =
     let line_stop = line_start + String.length text in

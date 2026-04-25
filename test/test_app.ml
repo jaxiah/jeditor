@@ -718,6 +718,64 @@ let test_focus_window_activates_its_buffer () =
   Alcotest.(check int) "focused buffer loaded" alpha_id st.current_buffer_id;
   Alcotest.(check string) "alpha content active" "a" (Buffer.to_string st.buffer)
 
+(* ── ISSUE-017: multi-cursor ───────────────────────────────────────── *)
+
+let test_next_occurrence_adds_selection_cursor () =
+  let st = state_with_file ~path:"t" ~content:"foo bar foo baz foo" in
+  let st = upd { st with cursor = Cursor.create 0 } ToggleMark in
+  let st = { st with cursor = Cursor.create 3 } in
+  let st = upd st AddNextOccurrence in
+  let ranges = Cursor.to_list st.cursor in
+  Alcotest.(check int) "two selections" 2 (List.length ranges);
+  Alcotest.(check (option int)) "mark kept" (Some 0) st.mark;
+  let second = List.nth ranges 1 in
+  Alcotest.(check int) "second match start" 8 (min second.Cursor.head second.anchor)
+
+let test_repeated_next_occurrence_adds_further_cursors () =
+  let st = state_with_file ~path:"t" ~content:"foo bar foo baz foo" in
+  let st = upd { st with cursor = Cursor.create 0 } ToggleMark in
+  let st = { st with cursor = Cursor.create 3 } in
+  let st = upd st AddNextOccurrence |> fun st -> upd st AddNextOccurrence in
+  Alcotest.(check int) "three selections" 3 (List.length (Cursor.to_list st.cursor))
+
+let test_column_expansion_and_last_line_noop () =
+  let st = state_with_file ~path:"t" ~content:"ab\ncd\nef" in
+  let st = { st with cursor = Cursor.create 1 } in
+  let st = upd st AddCursorBelow in
+  let heads = Cursor.to_list st.cursor |> List.map (fun r -> r.Cursor.head) in
+  Alcotest.(check (list int)) "same column below" [1; 4] heads;
+  let st = upd st AddCursorBelow in
+  let heads = Cursor.to_list st.cursor |> List.map (fun r -> r.Cursor.head) in
+  Alcotest.(check (list int)) "third line added" [1; 4; 7] heads;
+  let st = upd st AddCursorBelow in
+  Alcotest.(check int) "last line noop" 3 (List.length (Cursor.to_list st.cursor))
+
+let test_all_cursors_insert_delete_and_move () =
+  let cursor =
+    Cursor.of_list [
+      { Cursor.head = 1; anchor = 1 };
+      { Cursor.head = 3; anchor = 3 };
+    ]
+  in
+  let st = { (state_with_file ~path:"t" ~content:"abcd") with cursor } in
+  let st = upd st (Insert (Uchar.of_char 'X')) in
+  Alcotest.(check string) "insert at all cursors" "aXbcXd" (Buffer.to_string st.buffer);
+  let st = upd st Backspace in
+  Alcotest.(check string) "delete at all cursors" "abcd" (Buffer.to_string st.buffer);
+  let st = upd st (Move CharF) in
+  let heads = Cursor.to_list st.cursor |> List.map (fun r -> r.Cursor.head) in
+  Alcotest.(check (list int)) "move all cursors" [2; 4] heads
+
+let test_cancel_dismisses_secondary_cursors () =
+  let cursor =
+    Cursor.of_list [
+      { Cursor.head = 1; anchor = 1 };
+      { Cursor.head = 3; anchor = 3 };
+    ]
+  in
+  let st = upd { initial_state with cursor } Cancel in
+  Alcotest.(check int) "single cursor" 1 (List.length (Cursor.to_list st.cursor))
+
 let () =
   let open Alcotest in
   run "App" [
@@ -821,5 +879,12 @@ let () =
       test_case "kill_dirty_buffer_requires_confirmation_and_replaces_windows" `Quick test_kill_dirty_buffer_requires_confirmation_and_replaces_windows;
       test_case "independent_undo_per_buffer" `Quick test_independent_undo_per_buffer;
       test_case "focus_window_activates_its_buffer" `Quick test_focus_window_activates_its_buffer;
+    ];
+    "multi_cursor", [
+      test_case "next_occurrence_adds_selection_cursor" `Quick test_next_occurrence_adds_selection_cursor;
+      test_case "repeated_next_occurrence_adds_further_cursors" `Quick test_repeated_next_occurrence_adds_further_cursors;
+      test_case "column_expansion_and_last_line_noop" `Quick test_column_expansion_and_last_line_noop;
+      test_case "all_cursors_insert_delete_and_move" `Quick test_all_cursors_insert_delete_and_move;
+      test_case "cancel_dismisses_secondary_cursors" `Quick test_cancel_dismisses_secondary_cursors;
     ];
   ]

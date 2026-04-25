@@ -77,6 +77,8 @@ let emacs_default =
   |> bind [Key.Ctrl 'w']          "kill-region"
   |> bind [m 'w']                 "copy-region"
   |> bind [Key.Ctrl 'y']          "yank"
+  |> bind [m 'n']                 "add-next-occurrence"
+  |> bind [m 'N']                 "add-cursor-below"
   |> bind [Key.Ctrl '@']          "set-mark-command"
   |> bind [Key.Enter]             "new-line"
   |> bind [Key.Ctrl 'm']         "new-line"

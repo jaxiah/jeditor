@@ -12,14 +12,14 @@ Activate the multi-cursor capabilities that `Cursor` (ISSUE-004) already support
 
 ## Acceptance criteria
 
-- [ ] With a region selected, invoking next-occurrence adds a cursor at the next match and keeps the original selection active
-- [ ] Repeated next-occurrence invocations add further cursors without disturbing existing ones
-- [ ] Column expansion adds a cursor one line below at the same display column; repeated calls extend the column
-- [ ] Column expansion at the last line of the buffer does nothing
-- [ ] All cursors insert, delete, and navigate simultaneously
-- [ ] Cursors that collide after an edit are automatically merged (inherited from Cursor module)
-- [ ] C-g dismisses all secondary cursors and leaves a single primary cursor
-- [ ] All cursors are visually distinct from each other and from the background text (e.g. each cursor cell is highlighted)
+- [x] With a region selected, invoking next-occurrence adds a cursor at the next match and keeps the original selection active
+- [x] Repeated next-occurrence invocations add further cursors without disturbing existing ones
+- [x] Column expansion adds a cursor one line below at the same display column; repeated calls extend the column
+- [x] Column expansion at the last line of the buffer does nothing
+- [x] All cursors insert, delete, and navigate simultaneously
+- [x] Cursors that collide after an edit are automatically merged (inherited from Cursor module)
+- [x] C-g dismisses all secondary cursors and leaves a single primary cursor
+- [x] All cursors are visually distinct from each other and from the background text (e.g. each cursor cell is highlighted)
 
 ## Blocked by
 
@@ -33,3 +33,7 @@ Activate the multi-cursor capabilities that `Cursor` (ISSUE-004) already support
 - User story 42 (simultaneous edits)
 - User story 43 (cursor merge)
 - User story 44 (C-g dismiss secondary cursors)
+
+## Completed
+
+2026-04-26 — all acceptance criteria met. Implemented via TDD.
