@@ -44,7 +44,7 @@ let next_key read_char =
             | _ -> Some Key.Escape)
        | Some '\r' | Some '\n' -> Some (Key.Ctrl_meta 'm')
        | Some '\t' -> Some (Key.Ctrl_meta 'i')
-       | Some '\x7f' | Some '\x08' -> Some (Key.Ctrl_meta 'h')
+       | Some '\x7f' -> Some (Key.Ctrl_meta 'h') (* M-C-h is Meta + DEL on many systems *)
        | Some '\x1f' -> Some (Key.Ctrl_meta '/')
        | Some c when c >= '\x00' && c <= '\x1f' ->
            let code = int_of_char c in
@@ -57,9 +57,10 @@ let next_key read_char =
        | Some c -> Some (Key.Meta (Uchar.of_char c)))
   | Some '\r' | Some '\n' -> Some Key.Enter
   | Some '\t' -> Some Key.Tab
-  | Some '\x7f' | Some '\x08' -> Some Key.Backspace
+  | Some '\x7f' -> Some Key.Backspace (* Backspace is 127 (DEL) *)
   | Some '\x1f' -> Some (Key.Ctrl '/')
   | Some c when c >= '\x00' && c <= '\x1f' ->
+      (* This includes \x08 which is C-h *)
       let code = int_of_char c in
       let base =
         if code >= 1 && code <= 26 then char_of_int (code + 96)
@@ -69,7 +70,6 @@ let next_key read_char =
       Some (Key.Ctrl base)
   | Some c when Char.code c < 0x80 -> Some (Key.Char (Uchar.of_char c))
   | Some c ->
-      (* Multi-byte UTF-8 sequence: decode continuation bytes *)
       let b0 = Char.code c in
       let n_more =
         if b0 land 0xE0 = 0xC0 then 1

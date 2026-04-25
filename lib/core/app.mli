@@ -28,6 +28,7 @@ type action =
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
   | Undo | Redo
+  | Help
 
 type snapshot = {
   buffer : Buffer.t;

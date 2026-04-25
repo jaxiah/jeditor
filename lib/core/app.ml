@@ -42,6 +42,7 @@ type action =
   | Resize of { cols : int; rows : int }
   | Undo
   | Redo
+  | Help
 
 type snapshot = {
   buffer : Buffer.t;
@@ -138,6 +139,7 @@ let command_of_name name =
   | "undo"                 -> Undo
   | "redo"                 -> Redo
   | "goto-line"            -> StartGotoLinePrompt
+  | "help"                 -> Help
   | "cancel"               -> Ignore
   | _                      -> Ignore
 
@@ -194,6 +196,8 @@ let rec update state action =
            let current = take_snapshot st in
            { st with buffer = snap.buffer; cursor = snap.cursor;
                      redo_stack = rest; undo_stack = current :: st.undo_stack }, Noop)
+  | Help ->
+      { st with message = "Welcome to JEditor! (C-x C-c to quit)" }, Noop
   (* ── normal editing ─────────────────────────────────────────────── *)
   | Insert c ->
       let snap = take_snapshot st in

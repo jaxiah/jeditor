@@ -84,4 +84,5 @@ let emacs_default =
   |> bind [Key.Ctrl 'x'; Key.Ctrl 's'] "save"
   |> bind [Key.Ctrl 'x'; Key.Ctrl 'w'] "save-as"
   |> bind [Key.Ctrl 'x'; Key.Ctrl 'c'] "quit"
+  |> bind [Key.Ctrl 'h']          "help"
   |> bind [m 'g'; Key.Char (Uchar.of_char 'g')] "goto-line"
