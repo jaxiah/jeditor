@@ -1,0 +1,3 @@
+(library
+ (name jeditor_core)
+ (libraries jeditor_buffer jeditor_terminal))

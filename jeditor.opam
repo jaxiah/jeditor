@@ -1,0 +1,14 @@
+opam-version: "2.0"
+name: "jeditor"
+synopsis: "A TUI text editor written in OCaml"
+license: "MIT"
+depends: [
+  "ocaml"    {>= "5.4.0"}
+  "dune"     {>= "3.16"}
+  "uutf"     {>= "1.0.3"}
+  "uuseg"    {>= "15.0.0"}
+  "alcotest" {with-test & >= "1.7.0"}
+]
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+]

@@ -1,0 +1,3 @@
+(library
+ (name jeditor_plugin)
+ (libraries jeditor_core))

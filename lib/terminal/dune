@@ -1,0 +1,15 @@
+(library
+ (name jeditor_terminal)
+ (libraries uutf uuseg unix)
+ (foreign_stubs (language c) (names terminal_stubs))
+ (modules key attr escape_parser terminal input terminal_intf input_intf platform))
+
+(rule
+ (target platform.ml)
+ (action (copy platform_win32.ml platform.ml))
+ (enabled_if (= %{os_type} Win32)))
+
+(rule
+ (target platform.ml)
+ (action (copy platform_unix.ml platform.ml))
+ (enabled_if (<> %{os_type} Win32)))

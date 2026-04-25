@@ -1,0 +1,11 @@
+(test
+ (name test_buffer)
+ (libraries jeditor_buffer alcotest))
+
+(test
+ (name test_cursor)
+ (libraries jeditor_core alcotest))
+
+(test
+ (name test_app)
+ (libraries jeditor_core jeditor_buffer alcotest))

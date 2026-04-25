@@ -1,0 +1,4 @@
+(executable
+ (name main)
+ (public_name term_test)
+ (libraries jeditor_terminal uutf))

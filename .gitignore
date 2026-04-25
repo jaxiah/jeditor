@@ -1,0 +1,17 @@
+# Dune build artifacts
+_build/
+
+# Opam install files
+*.install
+
+# Local merlin configuration
+.merlin
+
+# Editor backups and swaps
+*~
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db

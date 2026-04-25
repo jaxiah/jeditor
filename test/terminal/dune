@@ -1,0 +1,7 @@
+(test
+ (name test_key)
+ (libraries jeditor_terminal alcotest))
+
+(test
+ (name test_input)
+ (libraries jeditor_terminal alcotest))
