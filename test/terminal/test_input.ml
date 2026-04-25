@@ -22,6 +22,10 @@ let test_arrows () =
 let test_escape () =
   check_parse "escape" ['\x1b'] Jeditor_terminal.Key.Escape
 
+let test_meta () =
+  check_parse "meta-g" ['\x1b'; 'g']
+    (Jeditor_terminal.Key.Meta (Uchar.of_char 'g'))
+
 let test_controls () =
   check_parse "enter" ['\r'] Jeditor_terminal.Key.Enter;
   check_parse "tab" ['\t'] Jeditor_terminal.Key.Tab;
@@ -50,6 +54,7 @@ let () =
       , [ Alcotest.test_case "Single char 'a'" `Quick test_char
         ; Alcotest.test_case "Arrows" `Quick test_arrows
         ; Alcotest.test_case "Escape" `Quick test_escape
+        ; Alcotest.test_case "Meta" `Quick test_meta
         ; Alcotest.test_case "Controls" `Quick test_controls
         ; Alcotest.test_case "Extended" `Quick test_extended
         ; Alcotest.test_case "UTF-8 multi-byte" `Quick test_utf8

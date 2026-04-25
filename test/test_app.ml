@@ -264,6 +264,14 @@ let test_goto_line_via_handle_key () =
   let (st, _) = App.handle_key st (Key.Char (Uchar.of_char 'g')) in
   Alcotest.(check bool) "mode = PromptGotoLine" true (st.mode = App.PromptGotoLine)
 
+let test_goto_line_with_held_alt () =
+  (* Some users keep Alt held for the second g, producing M-g M-g. *)
+  let st = state_with_file ~path:"t" ~content:"a\nb\nc" in
+  let (st, _) = App.handle_key st (Key.Meta (Uchar.of_char 'g')) in
+  Alcotest.(check bool) "pending after first M-g" true (st.pending_keys <> []);
+  let (st, _) = App.handle_key st (Key.Meta (Uchar.of_char 'g')) in
+  Alcotest.(check bool) "mode = PromptGotoLine" true (st.mode = App.PromptGotoLine)
+
 let test_goto_line_jump () =
   let content = "line1\nline2\nline3\nline4" in
   let st = state_with_file ~path:"t" ~content in
@@ -333,6 +341,7 @@ let () =
     ];
     "goto_line", [
       test_case "goto_via_handle_key"    `Quick test_goto_line_via_handle_key;
+      test_case "goto_with_held_alt"     `Quick test_goto_line_with_held_alt;
       test_case "jump_to_line"           `Quick test_goto_line_jump;
       test_case "jump_clamp"             `Quick test_goto_line_clamp;
     ];
