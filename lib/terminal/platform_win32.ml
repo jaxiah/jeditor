@@ -28,6 +28,7 @@ let key_of_win32_event (char_code, virtual_key, control_state) =
     || has_flag control_state left_ctrl_pressed
   in
   match virtual_key, char_code with
+  | (0x10 | 0x11 | 0x12), 0 -> None
   | 0x25, _ -> Some (Key.Arrow `Left)
   | 0x26, _ -> Some (Key.Arrow `Up)
   | 0x27, _ -> Some (Key.Arrow `Right)
@@ -45,6 +46,8 @@ let key_of_win32_event (char_code, virtual_key, control_state) =
   | 0x08, _ when alt && ctrl -> Some (Key.Ctrl_meta 'h')
   | 0x08, _ -> Some Key.Backspace
   | vk, _ when vk >= 0x70 && vk <= 0x7B -> Some (Key.Function (vk - 0x6F))
+  | vk, 0 when alt && vk >= 0x41 && vk <= 0x5A ->
+      Some (Key.Meta (Uchar.of_char (char_of_int (vk + 32))))
   | _, code when code >= 0 && code <= 31 && alt ->
       let key = key_of_control_code code in
       (match key with
@@ -58,21 +61,31 @@ let key_of_win32_event (char_code, virtual_key, control_state) =
   | _ -> None
 
 module Input : Input_intf.S = struct
-  type t = unit
+  type t = { mutable pending_alt : bool }
 
   let create () =
-    if enable_vt () then Ok ()
+    if enable_vt () then Ok { pending_alt = false }
     else Error "Failed to enable virtual terminal processing"
 
-  let rec next_key () =
+  let rec next_key input =
     match read_key_event () with
     | None -> None
-    | Some event ->
-        (match key_of_win32_event event with
+    | Some ((char_code, virtual_key, control_state) as event) ->
+        let is_alt_down =
+          has_flag control_state right_alt_pressed
+          || has_flag control_state left_alt_pressed
+        in
+        let effective_event =
+          if input.pending_alt && not is_alt_down && char_code > 0 then
+            (char_code, virtual_key, control_state lor left_alt_pressed)
+          else event
+        in
+        input.pending_alt <- is_alt_down && virtual_key = 0x12 && char_code = 0;
+        (match key_of_win32_event effective_event with
          | Some key -> Some key
-         | None -> next_key ())
+         | None -> next_key input)
 
-  let close () = disable_vt ()
+  let close _ = disable_vt ()
 end
 
 module Terminal : Terminal_intf.S = struct

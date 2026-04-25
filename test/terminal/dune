@@ -12,3 +12,9 @@
  (name test_wcwidth)
  (modules test_wcwidth)
  (libraries jeditor_terminal alcotest))
+
+(test
+ (name test_win32_input)
+ (modules test_win32_input)
+ (libraries jeditor_terminal alcotest)
+ (enabled_if (= %{os_type} Win32)))
