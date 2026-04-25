@@ -91,6 +91,8 @@ module Terminal : Terminal_intf.S = struct
     apply_attr t attr;
     Buffer.add_string t s
 
+  let write_raw t s = Buffer.add_string t s
+
   let clear_line t = Buffer.add_string t "\x1b[K"
   let clear_screen t = Buffer.add_string t "\x1b[2J\x1b[H"
 

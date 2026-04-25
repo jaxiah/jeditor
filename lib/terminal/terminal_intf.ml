@@ -8,6 +8,7 @@ module type S = sig
   val show_cursor : t -> unit
   val write_char  : t -> Uchar.t -> Attr.t -> unit
   val write_string : t -> string -> Attr.t -> unit
+  val write_raw   : t -> string -> unit
   val clear_line  : t -> unit
   val clear_screen : t -> unit
   val flush       : t -> unit

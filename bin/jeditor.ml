@@ -4,6 +4,7 @@ open Jeditor_buffer
 open Jeditor_plugin
 
 let needs_redraw = ref false
+let diff_state = ref Diff_renderer.empty_state
 
 (* SIGWINCH: set flag; safe to call on Windows (signal never fires there) *)
 let () =
@@ -12,8 +13,36 @@ let () =
       (Sys.Signal_handle (fun _ -> needs_redraw := true))
   with _ -> ()
 
-let render term state =
+let utf8_cells text =
+  let decoder = Uutf.decoder (`String text) in
+  let rec loop acc =
+    match Uutf.decode decoder with
+    | `Uchar u ->
+        let b = Stdlib.Buffer.create 4 in
+        Uutf.Buffer.add_utf_8 b u;
+        loop (Stdlib.Buffer.contents b :: acc)
+    | `Malformed _ -> loop ("?" :: acc)
+    | `End -> List.rev acc
+    | `Await -> List.rev acc
+  in
+  loop []
+
+let render ?(force=false) term state =
   let (cols, rows) = Terminal.size term in
+  let frame = ref (Diff_renderer.blank ~cols ~rows) in
+  let put_text ~row ~col text attr =
+    if row >= 0 && row < rows then
+      utf8_cells text
+      |> List.iteri (fun i text ->
+        let col = col + i in
+        if col >= 0 && col < cols then
+          frame := Diff_renderer.set ~row ~col { Diff_renderer.text; attr } !frame)
+  in
+  let clear_line ~row =
+    for col = 0 to cols - 1 do
+      frame := Diff_renderer.set ~row ~col Diff_renderer.blank_cell !frame
+    done
+  in
   let line_count = Buffer.line_count state.App.buffer in
   let frame_rows = rows in
   let selected_range =
@@ -42,7 +71,7 @@ let render term state =
   in
   let highlight_ranges = highlight_ranges @ cursor_highlights in
   let selection_attr = { Attr.default with Attr.reverse = true } in
-  let write_with_selection ~line_start text attr =
+  let write_with_selection ~row ~col ~line_start text attr =
     let line_stop = line_start + String.length text in
     let ranges =
       highlight_ranges
@@ -56,16 +85,17 @@ let render term state =
     let rec write_chunks pos = function
       | [] ->
           if pos < String.length text then
-            Terminal.write_string term
-              (String.sub text pos (String.length text - pos))
-              attr
+            put_text ~row ~col:(col + pos)
+              (String.sub text pos (String.length text - pos)) attr
       | (start, stop) :: rest ->
         if pos < start then
-            Terminal.write_string term (String.sub text pos (start - pos)) attr;
-          Terminal.write_string term (String.sub text start (stop - start)) selection_attr;
+            put_text ~row ~col:(col + pos)
+              (String.sub text pos (start - pos)) attr;
+          put_text ~row ~col:(col + start)
+            (String.sub text start (stop - start)) selection_attr;
           write_chunks stop rest
     in
-    if ranges = [] then Terminal.write_string term text attr
+    if ranges = [] then put_text ~row ~col text attr
     else write_chunks 0 ranges
   in
   let prompt_status byte_line dcol width =
@@ -108,9 +138,6 @@ let render term state =
           ~cols:width
   in
 
-  Terminal.hide_cursor term;
-  Terminal.clear_screen term;
-
   let (byte_line, byte_col) =
     Buffer.offset_to_line_col
       ~offset:(Cursor.primary state.App.cursor).head
@@ -134,8 +161,7 @@ let render term state =
       let text_rows = max 0 (rect.height - 1) in
       for i = 0 to text_rows - 1 do
         let buffer_line_idx = i + window.Frame.scroll_top_line in
-        Terminal.move_to term ~row:(rect.y + i) ~col:rect.x;
-        Terminal.clear_line term;
+        clear_line ~row:(rect.y + i);
         if buffer_line_idx < line_count then begin
           let line_attr =
             let cursor_line, _ =
@@ -146,7 +172,7 @@ let render term state =
             else Attr.default
           in
           let gtext = Printf.sprintf "%*d " (gutter - 1) (buffer_line_idx + 1) in
-          Terminal.write_string term gtext line_attr;
+          put_text ~row:(rect.y + i) ~col:rect.x gtext line_attr;
           let line_start = Buffer.line_to_offset ~line:buffer_line_idx buffer in
           let next_line_start =
             if buffer_line_idx + 1 < line_count
@@ -167,7 +193,8 @@ let render term state =
             if String.length full_line > text_cols then String.sub full_line 0 text_cols
             else full_line
           in
-          write_with_selection ~line_start truncated line_attr
+          write_with_selection ~row:(rect.y + i) ~col:(rect.x + gutter)
+            ~line_start truncated line_attr
         end
       done;
       let status_attr =
@@ -189,8 +216,7 @@ let render term state =
             ~line_count
             ~cols:rect.width
       in
-      Terminal.move_to term ~row:(rect.y + rect.height - 1) ~col:rect.x;
-      Terminal.write_string term status status_attr
+      put_text ~row:(rect.y + rect.height - 1) ~col:rect.x status status_attr
     end
   in
 
@@ -201,8 +227,7 @@ let render term state =
         let first_h = min first_h (max 1 (rect.height - 1)) in
         let second_h = max 1 (rect.height - first_h - 1) in
         let divider_y = rect.y + first_h in
-        Terminal.move_to term ~row:divider_y ~col:rect.x;
-        Terminal.write_string term (String.make rect.width '-') Attr.default;
+        put_text ~row:divider_y ~col:rect.x (String.make rect.width '-') Attr.default;
         draw_dividers { rect with Frame.height = first_h } a;
         draw_dividers { Frame.x = rect.x; y = divider_y + 1; width = rect.width; height = second_h } b
     | Frame.Split (Frame.Vertical, ratio, a, b) ->
@@ -211,8 +236,7 @@ let render term state =
         let second_w = max 1 (rect.width - first_w - 1) in
         let divider_x = rect.x + first_w in
         for y = rect.y to rect.y + rect.height - 1 do
-          Terminal.move_to term ~row:y ~col:divider_x;
-          Terminal.write_string term "|" Attr.default
+          put_text ~row:y ~col:divider_x "|" Attr.default
         done;
         draw_dividers { rect with Frame.width = first_w } a;
         draw_dividers { Frame.x = divider_x + 1; y = rect.y; width = second_w; height = rect.height } b
@@ -232,12 +256,16 @@ let render term state =
       then String.sub completions 0 cols
       else completions
     in
-    Terminal.move_to term ~row:(rows - 2) ~col:0;
-    Terminal.clear_line term;
-    Terminal.write_string term completion_text Attr.default
+    clear_line ~row:(rows - 2);
+    put_text ~row:(rows - 2) ~col:0 completion_text Attr.default
   end;
 
-  (* 3. Position cursor relative to focused window viewport *)
+  let output, next_diff_state = Diff_renderer.render ~force !diff_state !frame in
+  diff_state := next_diff_state;
+  Terminal.write_raw term "\x1b[?25l";
+  Terminal.write_raw term output;
+
+  (* Position cursor relative to focused window viewport. *)
   let focused_layout =
     Frame.layouts ~cols ~rows:frame_rows state.App.frame
     |> List.find_opt (fun (w, _) -> w.Frame.id = focused_id)
@@ -309,7 +337,7 @@ let () =
         let (c, r) = Terminal.size term in
         let (new_st, _) = App.update !state (App.Resize { cols = c; rows = r }) in
         state := new_st;
-        render term !state
+        render ~force:true term !state
       end;
       match Input.next_key input with
       | None -> 

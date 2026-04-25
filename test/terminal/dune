@@ -18,3 +18,8 @@
  (modules test_win32_input)
  (libraries jeditor_terminal alcotest)
  (enabled_if (= %{os_type} Win32)))
+
+(test
+ (name test_diff_renderer)
+ (modules test_diff_renderer)
+ (libraries jeditor_terminal alcotest))

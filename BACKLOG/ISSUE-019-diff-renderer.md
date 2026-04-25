@@ -10,12 +10,12 @@ This is a pure optimization -- no user-visible behavior changes other than the e
 
 ## Acceptance criteria
 
-- [ ] On a static screen (no edits, no cursor movement), zero bytes are written to stdout after the first frame
-- [ ] Typing a single character causes only the affected cells (the new character and any reflowed text) to be updated -- not the entire screen
-- [ ] Cursor movement updates only the previous and new cursor cell
-- [ ] The diff renderer produces visually identical output to the full-redraw renderer for all scenarios in previous issues
-- [ ] A forced full redraw (e.g. after C-l or terminal resize) works correctly and re-syncs `prev_frame`
-- [ ] The `prev_frame` grid is correctly invalidated and rebuilt after terminal resize
+- [x] On a static screen (no edits, no cursor movement), zero bytes are written to stdout after the first frame
+- [x] Typing a single character causes only the affected cells (the new character and any reflowed text) to be updated -- not the entire screen
+- [x] Cursor movement updates only the previous and new cursor cell
+- [x] The diff renderer produces visually identical output to the full-redraw renderer for all scenarios in previous issues
+- [x] A forced full redraw (e.g. after C-l or terminal resize) works correctly and re-syncs `prev_frame`
+- [x] The `prev_frame` grid is correctly invalidated and rebuilt after terminal resize
 
 ## Blocked by
 
@@ -24,3 +24,7 @@ This is a pure optimization -- no user-visible behavior changes other than the e
 ## User stories addressed
 
 - User story 46 (sub-100ms feel -- this issue is the primary enabler for the visual performance target)
+
+## Completed
+
+2026-04-26 — all acceptance criteria met. Implemented via TDD.
