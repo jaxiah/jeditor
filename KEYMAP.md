@@ -5,66 +5,66 @@ can be overridden by adding a higher-priority layer to `app_state.keymap`.
 
 ## 1. Navigation
 
-| Key                   | Command                | Description                                              |
-| --------------------- | ---------------------- | -------------------------------------------------------- |
-| `C-f` / `Right`       | `move-forward-char`    | Move forward one character                               |
-| `C-b` / `Left`        | `move-backward-char`   | Move backward one character                              |
-| `C-n` / `Down`        | `move-next-line`       | Move to next line                                        |
-| `C-p` / `Up`          | `move-prev-line`       | Move to previous line                                    |
-| `M-f`                 | `move-forward-word`    | Move forward one word                                    |
-| `M-b`                 | `move-backward-word`   | Move backward one word                                   |
-| `C-a`                 | `move-line-start`      | Move to indentation; second press moves to column 0      |
-| `C-e`                 | `move-line-end`        | Move to end of line                                      |
-| `M-<`                 | `move-buf-start`       | Move to beginning of buffer                              |
-| `M->`                 | `move-buf-end`         | Move to end of buffer                                    |
-| `M-g g`               | `goto-line`            | Prompt for line number and jump                          |
+| Key             | Command              | Description                                         |
+| --------------- | -------------------- | --------------------------------------------------- |
+| `C-f` / `Right` | `move-forward-char`  | Move forward one character                          |
+| `C-b` / `Left`  | `move-backward-char` | Move backward one character                         |
+| `C-n` / `Down`  | `move-next-line`     | Move to next line                                   |
+| `C-p` / `Up`    | `move-prev-line`     | Move to previous line                               |
+| `M-f`           | `move-forward-word`  | Move forward one word                               |
+| `M-b`           | `move-backward-word` | Move backward one word                              |
+| `C-a`           | `move-line-start`    | Move to indentation; second press moves to column 0 |
+| `C-e`           | `move-line-end`      | Move to end of line                                 |
+| `M-<`           | `move-buf-start`     | Move to beginning of buffer                         |
+| `M->`           | `move-buf-end`       | Move to end of buffer                               |
+| `M-g g`         | `goto-line`          | Prompt for line number and jump                     |
 
 ## 2. Editing & Deletion
 
-| Key                   | Command                | Description                                              |
-| --------------------- | ---------------------- | -------------------------------------------------------- |
-| `Backspace`           | `backward-delete-char` | Delete character before cursor (UTF-8 aware)             |
-| `C-d` / `Delete`      | `delete-forward-char`  | Delete character at cursor                               |
-| `M-Backspace`         | `delete-word-back`     | Delete word before cursor                                |
-| `M-d`                 | `kill-word-forward`    | Delete word after cursor                                 |
-| `C-k`                 | `kill-line`            | Kill to end of line (kills newline if at end of line)    |
-| `C-Space` / `C-@`     | `set-mark-command`     | Set or clear the mark for region selection               |
-| `C-w`                 | `kill-region`          | Cut selected region into the kill ring                   |
-| `M-w`                 | `copy-region`          | Copy selected region into the kill ring                  |
-| `C-y`                 | `yank`                 | Insert kill ring content at the cursor                   |
-| `Enter`               | `new-line`             | Insert newline                                           |
+| Key               | Command                | Description                                           |
+| ----------------- | ---------------------- | ----------------------------------------------------- |
+| `Backspace`       | `backward-delete-char` | Delete character before cursor (UTF-8 aware)          |
+| `C-d` / `Delete`  | `delete-forward-char`  | Delete character at cursor                            |
+| `M-Backspace`     | `delete-word-back`     | Delete word before cursor                             |
+| `M-d`             | `kill-word-forward`    | Delete word after cursor                              |
+| `C-k`             | `kill-line`            | Kill to end of line (kills newline if at end of line) |
+| `C-Space` / `C-@` | `set-mark-command`     | Set or clear the mark for region selection            |
+| `C-w`             | `kill-region`          | Cut selected region into the kill ring                |
+| `M-w`             | `copy-region`          | Copy selected region into the kill ring               |
+| `C-y`             | `yank`                 | Insert kill ring content at the cursor                |
+| `Enter`           | `new-line`             | Insert newline                                        |
 
 ## 3. Undo / Redo
 
-| Key          | Command  | Description                   |
-| ------------ | -------- | ----------------------------- |
+| Key           | Command | Description                       |
+| ------------- | ------- | --------------------------------- |
 | `C-/` / `C-_` | `undo`  | Undo last buffer-modifying action |
-| `M-_`        | `redo`   | Redo last undone action        |
+| `M-_`         | `redo`  | Redo last undone action           |
 
 ## 4. File Operations (C-x prefix)
 
-| Key       | Command    | Description                        |
-| --------- | ---------- | ---------------------------------- |
-| `C-x C-s` | `save`     | Save current file                  |
-| `C-x C-w` | `save-as`  | Save as (prompts for filename)      |
-| `C-x C-c` | `quit`     | Quit (prompts if unsaved changes)  |
-| `C-x 2`   | `split-window-below` | Split focused window top/bottom |
-| `C-x 3`   | `split-window-right` | Split focused window left/right |
-| `C-x o`   | `other-window` | Cycle focus to next window      |
-| `C-x 0`   | `delete-window` | Close focused window            |
-| `C-x 1`   | `delete-other-windows` | Close all windows except focused |
+| Key       | Command                | Description                       |
+| --------- | ---------------------- | --------------------------------- |
+| `C-x C-s` | `save`                 | Save current file                 |
+| `C-x C-w` | `save-as`              | Save as (prompts for filename)    |
+| `C-x C-c` | `quit`                 | Quit (prompts if unsaved changes) |
+| `C-x 2`   | `split-window-below`   | Split focused window top/bottom   |
+| `C-x 3`   | `split-window-right`   | Split focused window left/right   |
+| `C-x o`   | `other-window`         | Cycle focus to next window        |
+| `C-x 0`   | `delete-window`        | Close focused window              |
+| `C-x 1`   | `delete-other-windows` | Close all windows except focused  |
 
 ## 5. Global
 
-| Key       | Command   | Description                                         |
-| --------- | --------- | --------------------------------------------------- |
-| `C-c`     | `quit`    | Quit (prompts if unsaved changes)                   |
-| `C-s`     | `isearch-forward` | Incremental search forward                  |
-| `C-r`     | `isearch-backward` | Incremental search backward                 |
-| `C-g`     | `cancel`  | Cancel prompt or pending prefix                     |
-| `Escape`  | `cancel`  | Cancel prompt or pending prefix                     |
-| `M-x`     | `execute-extended-command` | Prompt for and execute a named command |
-| `M-%`     | `query-replace` | Query replace search matches                  |
+| Key      | Command                    | Description                            |
+| -------- | -------------------------- | -------------------------------------- |
+| `C-c`    | `quit`                     | Quit (prompts if unsaved changes)      |
+| `C-s`    | `isearch-forward`          | Incremental search forward             |
+| `C-r`    | `isearch-backward`         | Incremental search backward            |
+| `C-g`    | `cancel`                   | Cancel prompt or pending prefix        |
+| `Escape` | `cancel`                   | Cancel prompt or pending prefix        |
+| `M-x`    | `execute-extended-command` | Prompt for and execute a named command |
+| `M-%`    | `query-replace`            | Query replace search matches           |
 
 ## Notes
 

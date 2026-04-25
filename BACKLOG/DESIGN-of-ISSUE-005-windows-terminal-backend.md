@@ -190,12 +190,12 @@ This program is not included in the final release and is only used for manual ve
 
 ## Module Boundaries
 
-| Module | Exposed | Hidden |
-|------|---------|------|
-| `Key` | `Key.t`, `pp`, `of_string` | ESC sequence parsing table, state machine |
-| `Attr` | `Attr.t`, `Attr.default`, `color` | -- |
-| `Input` | `Input.S` module type, `Input.create/next_key/close` | platform_unix/win32 internal implementation |
-| `Terminal` | `Terminal.S` module type, `Terminal.create/...` | Output buffer, ANSI sequence concatenation, Win32 API calls |
+| Module     | Exposed                                              | Hidden                                                      |
+| ---------- | ---------------------------------------------------- | ----------------------------------------------------------- |
+| `Key`      | `Key.t`, `pp`, `of_string`                           | ESC sequence parsing table, state machine                   |
+| `Attr`     | `Attr.t`, `Attr.default`, `color`                    | --                                                          |
+| `Input`    | `Input.S` module type, `Input.create/next_key/close` | platform_unix/win32 internal implementation                 |
+| `Terminal` | `Terminal.S` module type, `Terminal.create/...`      | Output buffer, ANSI sequence concatenation, Win32 API calls |
 
 The `jeditor_terminal` library only exposes these four modules. `platform_unix.ml` and `platform_win32.ml` do not appear in the library's public interface.
 

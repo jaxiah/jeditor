@@ -45,31 +45,31 @@ val emacs_default : t
 **Standard command name strings** (used in `emacs_default` and by
 `action_of_command` in `App`):
 
-| Command name              | Bound keys                        |
-|---------------------------|-----------------------------------|
-| `"move-forward-char"`     | C-f, Arrow Right                  |
-| `"move-backward-char"`    | C-b, Arrow Left                   |
-| `"move-next-line"`        | C-n, Arrow Down                   |
-| `"move-prev-line"`        | C-p, Arrow Up                     |
-| `"move-forward-word"`     | M-f                               |
-| `"move-backward-word"`    | M-b                               |
-| `"move-line-start"`       | C-a                               |
-| `"move-line-end"`         | C-e                               |
-| `"move-buf-start"`        | M-<                               |
-| `"move-buf-end"`          | M->                               |
-| `"delete-forward-char"`   | C-d, Delete                       |
-| `"backward-delete-char"`  | Backspace                         |
-| `"delete-word-back"`      | C-M-h (ESC + Backspace)           |
-| `"kill-word-forward"`     | M-d                               |
-| `"kill-line"`             | C-k                               |
-| `"new-line"`              | Enter                             |
-| `"save"`                  | C-x C-s                           |
-| `"save-as"`               | C-x C-w                           |
-| `"quit"`                  | C-x C-c, C-c                      |
-| `"undo"`                  | C-/, C-_                          |
-| `"redo"`                  | M-_                               |
-| `"goto-line"`             | M-g g                             |
-| `"cancel"`                | C-g, Escape                       |
+| Command name             | Bound keys              |
+| ------------------------ | ----------------------- |
+| `"move-forward-char"`    | C-f, Arrow Right        |
+| `"move-backward-char"`   | C-b, Arrow Left         |
+| `"move-next-line"`       | C-n, Arrow Down         |
+| `"move-prev-line"`       | C-p, Arrow Up           |
+| `"move-forward-word"`    | M-f                     |
+| `"move-backward-word"`   | M-b                     |
+| `"move-line-start"`      | C-a                     |
+| `"move-line-end"`        | C-e                     |
+| `"move-buf-start"`       | M-<                     |
+| `"move-buf-end"`         | M->                     |
+| `"delete-forward-char"`  | C-d, Delete             |
+| `"backward-delete-char"` | Backspace               |
+| `"delete-word-back"`     | C-M-h (ESC + Backspace) |
+| `"kill-word-forward"`    | M-d                     |
+| `"kill-line"`            | C-k                     |
+| `"new-line"`             | Enter                   |
+| `"save"`                 | C-x C-s                 |
+| `"save-as"`              | C-x C-w                 |
+| `"quit"`                 | C-x C-c, C-c            |
+| `"undo"`                 | C-/, C-\_               |
+| `"redo"`                 | M-\_                    |
+| `"goto-line"`            | M-g g                   |
+| `"cancel"`               | C-g, Escape             |
 
 ---
 
@@ -136,10 +136,10 @@ val handle_key : app_state -> Key.t -> app_state * cmd
 
 ## Module Boundaries
 
-| Module      | Role                                                                 |
-|-------------|----------------------------------------------------------------------|
-| `Keymap`    | New. Pure trie data structure + `emacs_default`. No IO, no state.   |
-| `App`       | Gains `handle_key`. Owns `command_of_name` (private string→action). `update` unchanged. |
+| Module           | Role                                                                                            |
+| ---------------- | ----------------------------------------------------------------------------------------------- |
+| `Keymap`         | New. Pure trie data structure + `emacs_default`. No IO, no state.                               |
+| `App`            | Gains `handle_key`. Owns `command_of_name` (private string→action). `update` unchanged.         |
 | `bin/jeditor.ml` | Calls `handle_key` instead of `action_of_key` + `update`. Status bar shows pending prefix hint. |
 
 `Keymap` is added to `lib/core/dune` modules list.

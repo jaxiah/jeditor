@@ -79,9 +79,11 @@ CAMLprim value jeditor_get_term_size(value unit) {
 **`size`**: replace hardcoded `(80, 24)` with `get_term_size ()` (external).
 
 **`next_key`**: do NOT retry on EINTR -- return `None` instead:
+
 ```ocaml
 with Unix.Unix_error (Unix.EINTR, _, _) -> None
 ```
+
 This allows SIGWINCH to interrupt the blocking read and propagate up to the main loop.
 
 ---
@@ -148,16 +150,16 @@ done
 
 ## Module Boundaries
 
-| Module | Change |
-|--------|--------|
-| `lib/core/view.ml` | **New** -- pure layout functions, no deps |
-| `lib/terminal/wcwidth.ml` | **New** -- `uucp`-backed display width |
-| `lib/terminal/terminal_stubs.c` | Add Unix `ioctl TIOCGWINSZ` |
-| `lib/terminal/platform_unix.ml` | Real `size`; EINTR -> `None` in `next_key` |
-| `lib/terminal/dune` | Add `wcwidth` to modules; add `uucp` to libraries |
-| `lib/core/dune` | Add `view` to modules |
-| `jeditor.opam` | Add `uucp` |
-| `bin/jeditor.ml` | New render with gutter + real status bar; SIGWINCH; resize loop |
+| Module                          | Change                                                          |
+| ------------------------------- | --------------------------------------------------------------- |
+| `lib/core/view.ml`              | **New** -- pure layout functions, no deps                       |
+| `lib/terminal/wcwidth.ml`       | **New** -- `uucp`-backed display width                          |
+| `lib/terminal/terminal_stubs.c` | Add Unix `ioctl TIOCGWINSZ`                                     |
+| `lib/terminal/platform_unix.ml` | Real `size`; EINTR -> `None` in `next_key`                      |
+| `lib/terminal/dune`             | Add `wcwidth` to modules; add `uucp` to libraries               |
+| `lib/core/dune`                 | Add `view` to modules                                           |
+| `jeditor.opam`                  | Add `uucp`                                                      |
+| `bin/jeditor.ml`                | New render with gutter + real status bar; SIGWINCH; resize loop |
 
 File I/O remains entirely in `bin/jeditor.ml`. The renderer remains in `bin/jeditor.ml` for now; it will be extracted to a `Renderer` library module in a later issue when diffing is introduced.
 

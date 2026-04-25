@@ -82,12 +82,12 @@ independently.
 
 ## Keymap / Registry
 
-| Key | Command |
-| --- | --- |
-| `C-x 2` | `split-window-below` |
-| `C-x 3` | `split-window-right` |
-| `C-x o` | `other-window` |
-| `C-x 0` | `delete-window` |
+| Key     | Command                |
+| ------- | ---------------------- |
+| `C-x 2` | `split-window-below`   |
+| `C-x 3` | `split-window-right`   |
+| `C-x o` | `other-window`         |
+| `C-x 0` | `delete-window`        |
 | `C-x 1` | `delete-other-windows` |
 
 All names are registered for `M-x`.

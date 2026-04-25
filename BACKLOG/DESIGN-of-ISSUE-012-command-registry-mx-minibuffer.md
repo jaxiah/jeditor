@@ -39,16 +39,19 @@ and app_state = {
 ```
 
 New `mode` variant:
+
 ```ocaml
 type mode = Normal | PromptSaveAs | ConfirmQuit | PromptGotoLine | PromptMx
 ```
 
 New `action` variant:
+
 ```ocaml
 type action = ... | StartMx | MinibufTab
 ```
 
 New public function (no signature change to `handle_key` or `update`):
+
 ```ocaml
 val initial_state : app_state
 (** registry field is pre-populated with all built-in commands. *)
@@ -63,6 +66,7 @@ bind [Key.Meta 'x']  "execute-extended-command"
 ### `bin/jeditor.ml` — render changes
 
 When `state.App.mode = App.PromptMx`:
+
 - Row `rows-1` (status bar): `"M-x " ^ state.App.minibuf ^ "_"`
 - Row `rows-2` (completion line): space-separated matches from
   `Registry.complete ~prefix:state.App.minibuf state.App.registry`,
@@ -71,13 +75,13 @@ When `state.App.mode = App.PromptMx`:
 
 ## Module Boundaries
 
-| Module | Status | Responsibility |
-|--------|--------|----------------|
-| `lib/core/registry.ml` | **New** | Parametric name→handler map; prefix completion; alphabetical ordering. Pure functional — no side effects, no global state. |
-| `lib/core/app.ml` | Modified | Adds `registry` field to `app_state`; adds `PromptMx` mode; `StartMx`/`MinibufTab` actions; dispatches commands from registry in `MinibufConfirm`; populates registry in `initial_state`. |
-| `lib/core/keymap.ml` | Modified | Adds `m 'x' → "execute-extended-command"` to `emacs_default`. |
-| `lib/core/dune` | Modified | Adds `registry` to the modules list. |
-| `bin/jeditor.ml` | Modified | Renders completion row; handles `PromptMx` in status-bar display. |
+| Module                 | Status   | Responsibility                                                                                                                                                                            |
+| ---------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/core/registry.ml` | **New**  | Parametric name→handler map; prefix completion; alphabetical ordering. Pure functional — no side effects, no global state.                                                                |
+| `lib/core/app.ml`      | Modified | Adds `registry` field to `app_state`; adds `PromptMx` mode; `StartMx`/`MinibufTab` actions; dispatches commands from registry in `MinibufConfirm`; populates registry in `initial_state`. |
+| `lib/core/keymap.ml`   | Modified | Adds `m 'x' → "execute-extended-command"` to `emacs_default`.                                                                                                                             |
+| `lib/core/dune`        | Modified | Adds `registry` to the modules list.                                                                                                                                                      |
+| `bin/jeditor.ml`       | Modified | Renders completion row; handles `PromptMx` in status-bar display.                                                                                                                         |
 
 ## Deep Module Opportunities
 
@@ -86,43 +90,45 @@ When `state.App.mode = App.PromptMx`:
 **`MinibufConfirm` in `PromptMx`**: the full dispatch path (lookup → execute handler → return state) is a single match arm inside `update`. The caller (`handle_key`) cannot tell whether a command was executed via keybinding or M-x; both paths go through `update` and both push to `undo_stack` identically.
 
 **Built-in command registration**: `initial_state.registry` is built from the same `command_of_name` table, expressed as:
+
 ```ocaml
 let h action st = update st action
 Registry.register "move-forward-char" (h (Move CharF)) ...
 ```
+
 The `command_of_name` private function can be kept as-is for keymap dispatch; the registry wraps it. No duplication of logic.
 
 ## Testing Priorities
 
 1. **`Registry.complete` prefix narrowing** — empty prefix returns all names; typed prefix narrows correctly; non-matching prefix returns `[]`.
-   Covers: *"M-x shows a completion list that narrows as the user types"*
+   Covers: _"M-x shows a completion list that narrows as the user types"_
 
 2. **`Registry.lookup` exact match and miss** — known name returns `Some handler`; unknown name returns `None`.
-   Covers: *"Invoking an unknown command name displays an error message"*
+   Covers: _"Invoking an unknown command name displays an error message"_
 
 3. **`StartMx` opens `PromptMx` mode** — pressing M-x via `handle_key` sets `mode = PromptMx` and `minibuf = ""`.
    Covers: basic M-x invocation prerequisite for all other criteria.
 
 4. **M-x executes command: same result as keybinding** — type `"move-forward-char"` + Enter produces identical state to pressing C-f.
-   Covers: *"Selecting and executing a command produces the same result as its keybinding"*
+   Covers: _"Selecting and executing a command produces the same result as its keybinding"_
 
 5. **M-x unknown command shows error** — type `"no-such-cmd"` + Enter leaves mode Normal and sets a non-empty `message`.
-   Covers: *"Invoking an unknown command name displays an error message"*
+   Covers: _"Invoking an unknown command name displays an error message"_
 
 6. **C-g in `PromptMx` returns to Normal** — buffer, cursor, undo stack all unchanged.
-   Covers: *"Minibuffer C-g cancels without side effects"*
+   Covers: _"Minibuffer C-g cancels without side effects"_
 
 7. **Undo after M-x** — command via M-x followed by C-/ undoes the change; undo stack depth matches.
-   Covers: *"The minibuffer does not interfere with undo history"*
+   Covers: _"The minibuffer does not interfere with undo history"_
 
 8. **`register` makes command available in M-x** — register a new name, then `Registry.complete` and `Registry.lookup` see it.
-   Covers: *"A plugin or user config can register a new command"*
+   Covers: _"A plugin or user config can register a new command"_
 
 9. **`MinibufTab` inserts longest-common-prefix** — when completions share a prefix longer than current input, Tab extends input to LCP.
-   Covers: Tab completion (part of *"M-x shows a completion list"*)
+   Covers: Tab completion (part of _"M-x shows a completion list"_)
 
 10. **All built-in commands reachable** — `Registry.names initial_state.registry` contains every command name in `emacs_default`.
-    Covers: *"Every command from previous issues is accessible by name via M-x"*
+    Covers: _"Every command from previous issues is accessible by name via M-x"_
 
 ## Open Questions
 

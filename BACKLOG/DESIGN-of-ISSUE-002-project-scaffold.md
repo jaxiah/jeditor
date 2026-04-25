@@ -49,21 +49,23 @@ let () =
 
 ### opam Dependency List
 
-| Package | Purpose | dev-only |
-|----|------|----------|
-| `uutf` | UTF-8 encoding/decoding | No |
-| `uuseg` | Grapheme cluster segmentation (display width calculation) | No |
-| `alcotest` | Unit testing framework | Yes |
+| Package    | Purpose                                                   | dev-only |
+| ---------- | --------------------------------------------------------- | -------- |
+| `uutf`     | UTF-8 encoding/decoding                                   | No       |
+| `uuseg`    | Grapheme cluster segmentation (display width calculation) | No       |
+| `alcotest` | Unit testing framework                                    | Yes      |
 
 **Does not include Notty** -- the terminal backend is self-implemented in ISSUE-005.
 
 ### OCaml Version
 
 Targeting **OCaml 5.4+**. Declared in `dune-project`:
+
 ```
 (lang dune 3.16)
 (using ocamlformat 0.1)
 ```
+
 `.ocaml-version` file written as `5.4.1`.
 
 ## Module Boundaries

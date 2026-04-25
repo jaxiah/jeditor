@@ -36,7 +36,9 @@ val update : app_state -> action -> app_state
 `Buffer.t` is the abstract buffer type exposed by `jeditor_buffer`. No module outside `lib/buffer/` may reference `Buffer.SimpleBuffer` directly; the type is opaque and swappable.
 
 ### `bin/jeditor.ml`
+
 The main loop implementation:
+
 ```ocaml
 val main : unit -> unit
 ```

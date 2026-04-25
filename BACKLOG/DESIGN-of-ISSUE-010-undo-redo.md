@@ -40,8 +40,8 @@ The snapshot mechanism is already a high-level abstraction ("Deep Module" princi
 
 1. **Simple Undo**: Perform one edit, trigger `Undo`, verify buffer and cursor return to initial state. (Acceptance: "C-/ undoes the most recent buffer-modifying command")
 2. **Undo Chain**: Perform multiple edits, trigger `Undo` multiple times, verify step-by-step restoration. (Acceptance: "Repeated C-/ undoes further back through history")
-3. **Redo**: Perform an edit, `Undo`, then `Redo`, verify the edit is reapplied. (Acceptance: "C-? (or M-_) redoes the last undone command")
-4. **History Forking**: Perform `Undo`, then make a *new* edit. Verify `redo_stack` is cleared. (Acceptance: "Any new edit after an undo clears the redo stack")
+3. **Redo**: Perform an edit, `Undo`, then `Redo`, verify the edit is reapplied. (Acceptance: "C-? (or M-\_) redoes the last undone command")
+4. **History Forking**: Perform `Undo`, then make a _new_ edit. Verify `redo_stack` is cleared. (Acceptance: "Any new edit after an undo clears the redo stack")
 5. **Initial State**: Verify `Undo` on an empty stack does nothing. (Acceptance: "Undo on a freshly opened buffer does nothing")
 6. **Cursor Restoration**: Verify that `Undo` restores the cursor position exactly as it was before the edit. (Acceptance: "Undo/redo correctly restores cursor position")
 

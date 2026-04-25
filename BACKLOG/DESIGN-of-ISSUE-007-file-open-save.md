@@ -70,25 +70,25 @@ val update : app_state -> action -> app_state * effect
 
 #### `action_of_key` dispatch table
 
-| mode | key | action |
-|------|-----|--------|
-| Normal | `Ctrl 'x'` | `PendingCx` |
-| Normal | `Ctrl 'c'` / `Escape` | `TryQuit` |
-| Normal | printable char | `Insert c` |
-| Normal | `Backspace` / `Delete` | `Backspace` |
-| Normal | `Enter` | `Enter` |
-| Normal | other | `Ignore` |
-| PendingCx | `Ctrl 's'` | `Save` |
-| PendingCx | `Ctrl 'w'` | `StartSaveAs` |
-| PendingCx | `Ctrl 'c'` | `TryQuit` |
-| PendingCx | other | `Ignore` (update resets mode to Normal) |
-| PromptSaveAs | `Enter` | `MinibufConfirm` |
-| PromptSaveAs | `Backspace` | `MinibufBackspace` |
-| PromptSaveAs | `Ctrl 'g'` | `MinibufCancel` |
-| PromptSaveAs | printable char | `MinibufAppend c` |
-| PromptSaveAs | other | `Ignore` |
-| ConfirmQuit | `Char 'y'` / `Char 'Y'` | `Quit` |
-| ConfirmQuit | other | `MinibufCancel` |
+| mode         | key                     | action                                  |
+| ------------ | ----------------------- | --------------------------------------- |
+| Normal       | `Ctrl 'x'`              | `PendingCx`                             |
+| Normal       | `Ctrl 'c'` / `Escape`   | `TryQuit`                               |
+| Normal       | printable char          | `Insert c`                              |
+| Normal       | `Backspace` / `Delete`  | `Backspace`                             |
+| Normal       | `Enter`                 | `Enter`                                 |
+| Normal       | other                   | `Ignore`                                |
+| PendingCx    | `Ctrl 's'`              | `Save`                                  |
+| PendingCx    | `Ctrl 'w'`              | `StartSaveAs`                           |
+| PendingCx    | `Ctrl 'c'`              | `TryQuit`                               |
+| PendingCx    | other                   | `Ignore` (update resets mode to Normal) |
+| PromptSaveAs | `Enter`                 | `MinibufConfirm`                        |
+| PromptSaveAs | `Backspace`             | `MinibufBackspace`                      |
+| PromptSaveAs | `Ctrl 'g'`              | `MinibufCancel`                         |
+| PromptSaveAs | printable char          | `MinibufAppend c`                       |
+| PromptSaveAs | other                   | `Ignore`                                |
+| ConfirmQuit  | `Char 'y'` / `Char 'Y'` | `Quit`                                  |
+| ConfirmQuit  | other                   | `MinibufCancel`                         |
 
 #### `update` state-machine rules (summary)
 
@@ -126,6 +126,7 @@ state := new_state;
 ```
 
 File loading on startup (before the main loop):
+
 ```ocaml
 let state = ref (match Sys.argv with
   | [| _; path |] ->
@@ -142,17 +143,18 @@ let state = ref (match Sys.argv with
 
 The last terminal row is reserved. Content is rendered to rows `0 .. (term_rows - 2)`.
 Bottom row shows one of:
+
 - `PromptSaveAs`: `Save as: {minibuf}▌`
 - `ConfirmQuit`: `Unsaved changes -- quit anyway? (y/n)`
 - message != "": the message string
-- otherwise: {filename or "[No Name]"}{" *" if modified}
+- otherwise: {filename or "[No Name]"}{" \*" if modified}
 
 ## Module Boundaries
 
-| Module | Change |
-|--------|--------|
+| Module            | Change                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib/core/app.ml` | Add `mode`, `effect` types; extend `action` and `app_state`; change `update` signature to return `(app_state * effect)`; add `state_with_file`; make `action_of_key` mode-aware |
-| `bin/jeditor.ml` | Handle `effect` after each `update`; parse `Sys.argv`; add status bar / minibuf rendering |
+| `bin/jeditor.ml`  | Handle `effect` after each `update`; parse `Sys.argv`; add status bar / minibuf rendering                                                                                       |
 
 No new library modules. File I/O stays entirely in `bin/jeditor.ml` (the imperative shell).
 

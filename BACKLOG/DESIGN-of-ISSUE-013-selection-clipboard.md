@@ -72,12 +72,12 @@ not part of a consecutive line kill sequence.
 
 Add built-in command names:
 
-| Key | Command |
-| --- | --- |
+| Key               | Command            |
+| ----------------- | ------------------ |
 | `C-Space` / `C-@` | `set-mark-command` |
-| `C-w` | `kill-region` |
-| `M-w` | `copy-region` |
-| `C-y` | `yank` |
+| `C-w`             | `kill-region`      |
+| `M-w`             | `copy-region`      |
+| `C-y`             | `yank`             |
 
 Register all names in `initial_state.registry` so they are available via `M-x`.
 
