@@ -227,6 +227,20 @@ let test_handle_key_user_rebind () =
 
 (* ── ISSUE-009 补充：DeleteWordBack + GotoLine ───────────────────────── *)
 
+let test_delete_word_forward () =
+  (* "hello world", cursor before "world" at offset 6 *)
+  let st = state_with_file ~path:"t" ~content:"hello world" in
+  let st = { st with cursor = Cursor.create 6 } in
+  let st = upd st App.DeleteWordForward in
+  Alcotest.(check string) "world deleted" "hello " (Buffer.to_string st.buffer);
+  Alcotest.(check int) "cursor unchanged" 6 (Cursor.primary st.cursor).head
+
+let test_delete_word_forward_at_end () =
+  let st = state_with_file ~path:"t" ~content:"hi" in
+  let st = { st with cursor = Cursor.create 2 } in
+  let st = upd st App.DeleteWordForward in
+  Alcotest.(check string) "unchanged at end" "hi" (Buffer.to_string st.buffer)
+
 let test_delete_word_back () =
   (* "hello world", cursor after "world" at offset 11 *)
   let st = state_with_file ~path:"t" ~content:"hello world" in
@@ -312,6 +326,10 @@ let () =
     "delete_word_back", [
       test_case "delete_word_back"       `Quick test_delete_word_back;
       test_case "delete_word_back_start" `Quick test_delete_word_back_at_start;
+    ];
+    "delete_word_forward", [
+      test_case "delete_word_forward"     `Quick test_delete_word_forward;
+      test_case "delete_word_forward_end" `Quick test_delete_word_forward_at_end;
     ];
     "goto_line", [
       test_case "goto_via_handle_key"    `Quick test_goto_line_via_handle_key;

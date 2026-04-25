@@ -35,6 +35,7 @@ type action =
   | Move of move_target
   | DeleteForward
   | DeleteWordBack
+  | DeleteWordForward
   | KillLine
   | StartGotoLinePrompt
   | JumpToLine of int
@@ -128,6 +129,7 @@ let command_of_name name =
   | "delete-forward-char"  -> DeleteForward
   | "backward-delete-char" -> Backspace
   | "delete-word-back"     -> DeleteWordBack
+  | "kill-word-forward"   -> DeleteWordForward
   | "kill-line"            -> KillLine
   | "new-line"             -> Enter
   | "save"                 -> Save
@@ -283,6 +285,17 @@ let rec update state action =
         let snap = take_snapshot st in
         let buffer = Buffer.delete ~offset:word_start ~length:del_len st.buffer in
         let cursor = Cursor.apply_edit ~offset:word_start ~deleted:del_len ~inserted:0 st.cursor in
+        { st with buffer; cursor; modified = true;
+                  undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
+      else st, Noop
+  | DeleteWordForward ->
+      let offset = (Cursor.primary st.cursor).head in
+      let word_end = Buffer.next_word_boundary ~offset st.buffer in
+      let del_len = word_end - offset in
+      if del_len > 0 then
+        let snap = take_snapshot st in
+        let buffer = Buffer.delete ~offset ~length:del_len st.buffer in
+        let cursor = Cursor.apply_edit ~offset ~deleted:del_len ~inserted:0 st.cursor in
         { st with buffer; cursor; modified = true;
                   undo_stack = snap :: st.undo_stack; redo_stack = [] }, Noop
       else st, Noop

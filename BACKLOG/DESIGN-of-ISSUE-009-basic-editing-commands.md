@@ -25,6 +25,7 @@ type action =
   | Move of move_target
   | DeleteForward
   | DeleteWordBack          (** M-Backspace: kill word before cursor (uses prev_word_boundary) *)
+  | DeleteWordForward       (** M-d: kill word after cursor (uses next_word_boundary) *)
   | KillLine
   | JumpToLinePrompt        (** M-g: enter PendingMg mode *)
   | StartGotoLinePrompt     (** second key g in PendingMg: open PromptGotoLine *)
@@ -77,7 +78,7 @@ val prev_word_boundary : offset:int -> t -> int
 2. **`Buffer` indentation**: Verify `first_non_whitespace` handles empty lines and lines with various leading whitespaces. (Acceptance: "C-a moves to the first non-whitespace character")
 3. **`App` Navigation Actions**: Verify `update` correctly modifies the cursor offset for each `move_target`. (Acceptance: "All navigation commands move the cursor to the correct byte offset")
 4. **`App` Scrolling**: Verify that `update` adjusts `scroll_top_line` when the cursor moves out of the current viewport. (Acceptance: "Viewport scrolls to keep cursor visible")
-5. **`App` Deletion Actions**: Verify `KillLine`, `DeleteForward`, and `DeleteWordBack` behavior, especially edge cases like end-of-buffer and position 0. (Acceptance: "C-k on an empty line deletes the newline", "C-d at end of buffer does nothing", "M-Backspace delete word backward")
+5. **`App` Deletion Actions**: Verify `KillLine`, `DeleteForward`, `DeleteWordBack`, and `DeleteWordForward` behavior, especially edge cases like end-of-buffer and position 0. (Acceptance: "C-k on an empty line deletes the newline", "C-d at end of buffer does nothing", "M-Backspace delete word backward", "M-d delete word forward")
 6. **`App` Goto Line**: Verify `JumpToLinePrompt`→`PendingMg`, `StartGotoLinePrompt`→`PromptGotoLine`, `JumpToLine n` cursor placement, and out-of-range clamping. (Acceptance: "M-g g prompts for a line number and jumps correctly")
 
 ---

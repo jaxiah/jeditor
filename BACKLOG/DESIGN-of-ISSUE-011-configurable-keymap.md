@@ -60,6 +60,7 @@ val emacs_default : t
 | `"delete-forward-char"`   | C-d, Delete                       |
 | `"backward-delete-char"`  | Backspace                         |
 | `"delete-word-back"`      | C-M-h (ESC + Backspace)           |
+| `"kill-word-forward"`     | M-d                               |
 | `"kill-line"`             | C-k                               |
 | `"new-line"`              | Enter                             |
 | `"save"`                  | C-x C-s                           |

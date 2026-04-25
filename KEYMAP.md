@@ -1,45 +1,65 @@
 # JEditor Keymap
 
-This document lists the currently supported Emacs-style keybindings in JEditor.
+Emacs-style keybindings. All bindings live in `Keymap.emacs_default` and
+can be overridden by adding a higher-priority layer to `app_state.keymap`.
 
 ## 1. Navigation
 
-| Key                   | Action           | Description                                              |
-| --------------------- | ---------------- | -------------------------------------------------------- |
-| `C-f` / `Right Arrow` | `Move CharF`     | Move forward one character                               |
-| `C-b` / `Left Arrow`  | `Move CharB`     | Move backward one character                              |
-| `C-n` / `Down Arrow`  | `Move LineN`     | Move to the next line                                    |
-| `C-p` / `Up Arrow`    | `Move LineP`     | Move to the previous line                                |
-| `M-f`                 | `Move WordF`     | Move forward one word                                    |
-| `M-b`                 | `Move WordB`     | Move backward one word                                   |
-| `C-a`                 | `Move LineStart` | Move to indentation; second press moves to start of line |
-| `C-e`                 | `Move LineEnd`   | Move to the end of the line                              |
-| `M-<`                 | `Move BufStart`  | Move to the beginning of the buffer                      |
-| `M->`                 | `Move BufEnd`    | Move to the end of the buffer                            |
+| Key                   | Command                | Description                                              |
+| --------------------- | ---------------------- | -------------------------------------------------------- |
+| `C-f` / `Right`       | `move-forward-char`    | Move forward one character                               |
+| `C-b` / `Left`        | `move-backward-char`   | Move backward one character                              |
+| `C-n` / `Down`        | `move-next-line`       | Move to next line                                        |
+| `C-p` / `Up`          | `move-prev-line`       | Move to previous line                                    |
+| `M-f`                 | `move-forward-word`    | Move forward one word                                    |
+| `M-b`                 | `move-backward-word`   | Move backward one word                                   |
+| `C-a`                 | `move-line-start`      | Move to indentation; second press moves to column 0      |
+| `C-e`                 | `move-line-end`        | Move to end of line                                      |
+| `M-<`                 | `move-buf-start`       | Move to beginning of buffer                              |
+| `M->`                 | `move-buf-end`         | Move to end of buffer                                    |
+| `M-g g`               | `goto-line`            | Prompt for line number and jump                          |
 
 ## 2. Editing & Deletion
 
-| Key              | Action          | Description                             |
-| ---------------- | --------------- | --------------------------------------- |
-| `Backspace`      | `Backspace`     | Delete character before the cursor      |
-| `C-d` / `Delete` | `DeleteForward` | Delete character at the cursor          |
-| `C-k` | `KillLine` | Kill from cursor to the end of the line |
-| `Enter` | `Enter` | Insert a newline |
-| `C-/` | `Undo` | Undo the last buffer-modifying action |
-| `M-_` | `Redo` | Redo the last undone action |
+| Key                   | Command                | Description                                              |
+| --------------------- | ---------------------- | -------------------------------------------------------- |
+| `Backspace`           | `backward-delete-char` | Delete character before cursor (UTF-8 aware)             |
+| `C-d` / `Delete`      | `delete-forward-char`  | Delete character at cursor                               |
+| `M-Backspace`         | `delete-word-back`     | Delete word before cursor                                |
+| `M-d`                 | `kill-word-forward`    | Delete word after cursor                                 |
+| `C-k`                 | `kill-line`            | Kill to end of line (kills newline if at end of line)    |
+| `Enter`               | `new-line`             | Insert newline                                           |
 
+## 3. Undo / Redo
 
-## 3. File Operations (C-x Prefix)
+| Key          | Command  | Description                   |
+| ------------ | -------- | ----------------------------- |
+| `C-/` / `C-_` | `undo`  | Undo last buffer-modifying action |
+| `M-_`        | `redo`   | Redo last undone action        |
 
-| Key       | Action        | Description                       |
-| --------- | ------------- | --------------------------------- |
-| `C-x C-s` | `Save`        | Save the current file             |
-| `C-x C-w` | `StartSaveAs` | Save as... (prompts for filename) |
+## 4. File Operations (C-x prefix)
 
-## 4. System & Global
+| Key       | Command    | Description                        |
+| --------- | ---------- | ---------------------------------- |
+| `C-x C-s` | `save`     | Save current file                  |
+| `C-x C-w` | `save-as`  | Save as (prompts for filename)      |
+| `C-x C-c` | `quit`     | Quit (prompts if unsaved changes)  |
 
-| Key       | Action    | Description                                         |
+## 5. Global
+
+| Key       | Command   | Description                                         |
 | --------- | --------- | --------------------------------------------------- |
-| `C-x C-c` | `TryQuit` | Quit JEditor (prompts if there are unsaved changes) |
-| `C-g`     | `Cancel`  | Cancel current prompt or operation                  |
-| `Esc`     | `Ignore`  | (In Normal mode) Currently mapped to ignore         |
+| `C-c`     | `quit`    | Quit (prompts if unsaved changes)                   |
+| `C-g`     | `cancel`  | Cancel prompt or pending prefix                     |
+| `Escape`  | `cancel`  | Cancel prompt or pending prefix                     |
+
+## Notes
+
+- **Prefix hint**: while typing a multi-key sequence (e.g. after `C-x`), the
+  status bar shows the keys typed so far (`C-x ...`).
+- **Unbound keys**: non-printable unbound keys display `"Key not bound"` in
+  the status bar.
+- **Self-insert**: any printable `Key.Char` not bound in the keymap is
+  inserted as a character.
+- **Rebinding**: prepend a custom `Keymap.t` to `app_state.keymap` to
+  override any binding without touching `emacs_default`.

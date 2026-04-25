@@ -72,6 +72,7 @@ let emacs_default =
   |> bind [Key.Delete]            "delete-forward-char"
   |> bind [Key.Backspace]         "backward-delete-char"
   |> bind [Key.Ctrl_meta 'h']     "delete-word-back"
+  |> bind [m 'd']                 "kill-word-forward"
   |> bind [Key.Ctrl 'k']          "kill-line"
   |> bind [Key.Enter]             "new-line"
   |> bind [Key.Ctrl '/']          "undo"

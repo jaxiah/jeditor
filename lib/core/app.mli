@@ -23,7 +23,7 @@ type action =
   | MinibufAppend of Uchar.t | MinibufBackspace | MinibufConfirm | MinibufCancel
   | WriteDone of string | WriteError of string | Quit | Ignore
   | Move of move_target
-  | DeleteForward | DeleteWordBack | KillLine
+  | DeleteForward | DeleteWordBack | DeleteWordForward | KillLine
   | StartGotoLinePrompt
   | JumpToLine of int
   | Resize of { cols : int; rows : int }
