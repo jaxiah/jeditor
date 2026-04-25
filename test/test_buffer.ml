@@ -84,6 +84,27 @@ let test_multiple_edits () =
   let b = Buffer.insert ~offset:3 "A\nB" b in (* 30\nA\nB456 *)
   Alcotest.(check string) "round-trip multiple edits" "30\nA\nB456" (Buffer.to_string b)
 
+let test_word_boundaries () =
+  let text = "hello, world! 123 abc" in
+  let b = Buffer.of_string text in
+  (* next_word_boundary *)
+  Alcotest.(check int) "next from start" 5 (Buffer.next_word_boundary ~offset:0 b);
+  Alcotest.(check int) "next from middle of word" 5 (Buffer.next_word_boundary ~offset:2 b);
+  Alcotest.(check int) "next skips punctuation" 12 (Buffer.next_word_boundary ~offset:5 b);
+  Alcotest.(check int) "next from end" (String.length text) (Buffer.next_word_boundary ~offset:(String.length text) b);
+  
+  (* prev_word_boundary *)
+  Alcotest.(check int) "prev from end" 18 (Buffer.prev_word_boundary ~offset:(String.length text) b);
+  Alcotest.(check int) "prev from space" 14 (Buffer.prev_word_boundary ~offset:17 b);
+  Alcotest.(check int) "prev skips punctuation" 7 (Buffer.prev_word_boundary ~offset:12 b);
+  Alcotest.(check int) "prev from start" 0 (Buffer.prev_word_boundary ~offset:0 b)
+
+let test_indentation () =
+  let b = Buffer.of_string "  hello\n\tworld\n   " in
+  Alcotest.(check int) "space indentation" 2 (Buffer.first_non_whitespace ~line:0 b);
+  Alcotest.(check int) "tab indentation" 1 (Buffer.first_non_whitespace ~line:1 b);
+  Alcotest.(check int) "all whitespace line" 3 (Buffer.first_non_whitespace ~line:2 b)
+
 let tests = [
   "Empty buffer properties", `Quick, test_empty_buffer;
   "of/to string single line", `Quick, test_of_to_string_single_line;
@@ -94,6 +115,8 @@ let tests = [
   "coordinate mapping", `Quick, test_coordinate_mapping;
   "CJK support", `Quick, test_cjk;
   "multiple edits", `Quick, test_multiple_edits;
+  "word boundaries", `Quick, test_word_boundaries;
+  "indentation", `Quick, test_indentation;
 ]
 
 let () =

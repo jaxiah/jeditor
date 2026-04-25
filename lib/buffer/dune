@@ -1,2 +1,3 @@
 (library
- (name jeditor_buffer))
+ (name jeditor_buffer)
+ (libraries uutf))

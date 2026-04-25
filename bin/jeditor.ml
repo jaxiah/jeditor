@@ -20,18 +20,19 @@ let render term state =
   Terminal.hide_cursor term;
   Terminal.clear_screen term;
 
-  (* 1. Render text area with gutter *)
+  (* 1. Render text area with gutter using scroll_top_line *)
   for i = 0 to rows - 2 do
-    if i < line_count then begin
+    let buffer_line_idx = i + state.App.scroll_top_line in
+    if buffer_line_idx < line_count then begin
       Terminal.move_to term ~row:i ~col:0;
       (* Write gutter: right-aligned line number *)
-      let gtext = Printf.sprintf "%*d " (gutter - 1) (i + 1) in
+      let gtext = Printf.sprintf "%*d " (gutter - 1) (buffer_line_idx + 1) in
       Terminal.write_string term gtext Attr.default;
       
       (* Write line content (truncated to text_cols) *)
-      let line_start = Buffer.line_to_offset ~line:i state.App.buffer in
+      let line_start = Buffer.line_to_offset ~line:buffer_line_idx state.App.buffer in
       let next_line_start = 
-        if i + 1 < line_count then Buffer.line_to_offset ~line:(i + 1) state.App.buffer
+        if buffer_line_idx + 1 < line_count then Buffer.line_to_offset ~line:(buffer_line_idx + 1) state.App.buffer
         else Buffer.length state.App.buffer
       in
       let line_len = next_line_start - line_start in
@@ -60,10 +61,9 @@ let render term state =
   
   let stext = match state.App.mode with
     | App.PromptSaveAs ->
-        View.status_text ~file_path:None ~modified:false ~cursor_line:0 ~cursor_display_col:0 ~line_count:0 ~cols
-        |> fun _ -> "Save as: " ^ state.App.minibuf ^ "_"
+        "Save as: " ^ state.App.minibuf ^ "_"
     | App.ConfirmQuit ->
-        "Unsaved changes \xe2\x80\x94 quit anyway? (y/n)"
+        "Unsaved changes — quit anyway? (y/n)"
     | _ ->
         if state.App.message <> "" then state.App.message
         else View.status_text
@@ -78,9 +78,10 @@ let render term state =
   Terminal.clear_line term;
   Terminal.write_string term stext Attr.default;
 
-  (* 3. Position cursor *)
-  if byte_line < rows - 1 then begin
-    Terminal.move_to term ~row:byte_line ~col:(gutter + dcol);
+  (* 3. Position cursor relative to viewport *)
+  let relative_line = byte_line - state.App.scroll_top_line in
+  if relative_line >= 0 && relative_line < rows - 1 then begin
+    Terminal.move_to term ~row:relative_line ~col:(gutter + dcol);
     Terminal.show_cursor term
   end else begin
     Terminal.hide_cursor term
@@ -117,17 +118,25 @@ let () =
               App.message = "Error opening file: " ^ Printexc.to_string exn })
       | _ -> App.initial_state)
     in
+    (* Initial resize sync *)
+    let (c, r) = Terminal.size term in
+    let (new_st, _) = App.update !state (App.Resize { cols = c; rows = r }) in
+    state := new_st;
+
     render term !state;
     let running = ref true in
     while !running do
       if !needs_redraw then begin
         needs_redraw := false;
+        let (c, r) = Terminal.size term in
+        let (new_st, _) = App.update !state (App.Resize { cols = c; rows = r }) in
+        state := new_st;
         render term !state
       end;
       match Input.next_key input with
       | None -> 
           (* Potential EINTR from SIGWINCH on Unix, or EOF *)
-          if not !needs_redraw then () (* True EOF or error if no redraw pending *)
+          if not !needs_redraw then () 
       | Some key ->
         let action = App.action_of_key !state.App.mode key in
         let (new_state, cmd) = App.update !state action in

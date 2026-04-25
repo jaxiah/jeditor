@@ -14,6 +14,11 @@ module type S = sig
 
   val line_to_offset : line:int -> t -> int
   val offset_to_line_col : offset:int -> t -> (int * int)
+
+  val is_word_char : Uchar.t -> bool
+  val first_non_whitespace : line:int -> t -> int
+  val next_word_boundary : offset:int -> t -> int
+  val prev_word_boundary : offset:int -> t -> int
 end
 
 (** The current buffer implementation. The underlying representation is

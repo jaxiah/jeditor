@@ -14,15 +14,19 @@ Implement the full set of basic navigation and deletion commands. After this iss
 
 ## Acceptance criteria
 
-- [ ] All navigation commands move the cursor to the correct byte offset as verified by the status bar position display
-- [ ] C-n/C-p on the last/first line do nothing (no wrap-around)
-- [ ] M-f/M-b skip punctuation and whitespace consistently (Emacs word boundary semantics)
-- [ ] C-a moves to the first non-whitespace character; a second C-a moves to column 0 (Emacs `back-to-indentation` behavior)
-- [ ] C-d at end of buffer does nothing
-- [ ] C-k on an empty line deletes the newline; C-k on a non-empty line kills to end of line but leaves the newline
-- [ ] M-g g prompts for a line number in the minibuffer stub and jumps correctly
-- [ ] Viewport scrolls to keep cursor visible after every navigation command
-- [ ] All commands behave correctly on a buffer with a single line and on a buffer with a single character
+- [x] All navigation commands move the cursor to the correct byte offset as verified by the status bar position display
+- [x] C-n/C-p on the last/first line do nothing (no wrap-around)
+- [x] M-f/M-b skip punctuation and whitespace consistently (Emacs word boundary semantics)
+- [x] C-a moves to the first non-whitespace character; a second C-a moves to column 0 (Emacs `back-to-indentation` behavior)
+- [x] C-d at end of buffer does nothing
+- [x] C-k on an empty line deletes the newline; C-k on a non-empty line kills to end of line but leaves the newline
+- [x] M-g g prompts for a line number in the minibuffer stub and jumps correctly
+- [x] Viewport scrolls to keep cursor visible after every navigation command
+- [x] All commands behave correctly on a buffer with a single line and on a buffer with a single character
+
+## Completed
+
+2026-04-25 — all acceptance criteria met. Implemented via TDD. Added Emacs-like navigation (C-f/b/n/p, M-f/b, etc.) and deletion (C-d, C-k). Implemented viewport scrolling logic in `App.update` and the renderer. Added `Resize` action to sync terminal dimensions.
 
 ## Blocked by
 

@@ -7,6 +7,12 @@ type mode =
   | PromptSaveAs
   | ConfirmQuit
 
+type move_target =
+  | CharF | CharB | LineN | LineP
+  | WordF | WordB
+  | LineStart | LineEnd
+  | BufStart | BufEnd
+
 type cmd =
   | Noop
   | WriteFile of { path : string; content : string }
@@ -27,16 +33,23 @@ type action =
   | WriteError of string
   | Quit
   | Ignore
+  | Move of move_target
+  | DeleteForward
+  | KillLine
+  | Resize of { cols : int; rows : int }
 
 type app_state = {
-  buffer    : Buffer.t;
-  cursor    : Cursor.t;
-  quit      : bool;
-  file_path : string option;
-  modified  : bool;
-  mode      : mode;
-  minibuf   : string;
-  message   : string;
+  buffer          : Buffer.t;
+  cursor          : Cursor.t;
+  quit            : bool;
+  file_path       : string option;
+  modified        : bool;
+  mode            : mode;
+  minibuf         : string;
+  message         : string;
+  scroll_top_line : int;
+  cols            : int;
+  rows            : int;
 }
 
 let initial_state = {
@@ -48,6 +61,9 @@ let initial_state = {
   mode      = Normal;
   minibuf   = "";
   message   = "";
+  scroll_top_line = 0;
+  cols      = 80;
+  rows      = 24;
 }
 
 let state_with_file ~path ~content = {
@@ -60,12 +76,24 @@ let action_of_key mode key =
   match mode with
   | Normal -> (match key with
       | Key.Char c               -> Insert c
-      | Key.Backspace
-      | Key.Delete               -> Backspace
+      | Key.Backspace            -> Backspace
+      | Key.Delete               -> DeleteForward
       | Key.Enter                -> Enter
       | Key.Ctrl 'x'             -> PendingCx
-      | Key.Ctrl 'c'
-      | Key.Escape               -> TryQuit
+      | Key.Ctrl 'c'             -> TryQuit
+      | Key.Escape               -> Ignore
+      | Key.Ctrl 'f' | Key.Arrow `Right -> Move CharF
+      | Key.Ctrl 'b' | Key.Arrow `Left  -> Move CharB
+      | Key.Ctrl 'n' | Key.Arrow `Down  -> Move LineN
+      | Key.Ctrl 'p' | Key.Arrow `Up    -> Move LineP
+      | Key.Meta (c) when Uchar.to_char c = 'f' -> Move WordF
+      | Key.Meta (c) when Uchar.to_char c = 'b' -> Move WordB
+      | Key.Meta (c) when Uchar.to_char c = '<' -> Move BufStart
+      | Key.Meta (c) when Uchar.to_char c = '>' -> Move BufEnd
+      | Key.Ctrl 'a'             -> Move LineStart
+      | Key.Ctrl 'e'             -> Move LineEnd
+      | Key.Ctrl 'd'             -> DeleteForward
+      | Key.Ctrl 'k'             -> KillLine
       | _                        -> Ignore)
   | PendingCx -> (match key with
       | Key.Ctrl 's'             -> Save
@@ -96,9 +124,33 @@ let utf8_char_length_before buf offset =
   if offset <= 0 then 0
   else go (offset - 1)
 
+(** Return the byte length of the UTF-8 codepoint starting at [offset]. *)
+let utf8_char_length_at buf offset =
+  let s = Buffer.to_string buf in
+  let len = String.length s in
+  if offset >= len then 0
+  else
+    let decoder = Uutf.decoder (`String (String.sub s offset (len - offset))) in
+    match Uutf.decode decoder with
+    | `Uchar _ -> Uutf.decoder_byte_count decoder
+    | `Malformed _ -> 1
+    | _ -> 0
+
+let ensure_cursor_visible st =
+  let (line, _) = Buffer.offset_to_line_col ~offset:(Cursor.primary st.cursor).head st.buffer in
+  let viewport_height = st.rows - 1 in (* Bottom row reserved for status bar *)
+  if line < st.scroll_top_line then
+    { st with scroll_top_line = line }
+  else if line >= st.scroll_top_line + viewport_height then
+    { st with scroll_top_line = line - viewport_height + 1 }
+  else
+    st
+
 let update state action =
   let st = { state with message = "" } in
-  match action with
+  let (new_st, cmd) = match action with
+  | Resize { cols; rows } ->
+      { st with cols; rows }, Noop
   (* ── normal editing ─────────────────────────────────────────────── *)
   | Insert c ->
       let b = Stdlib.Buffer.create 4 in
@@ -124,6 +176,73 @@ let update state action =
       let buffer = Buffer.insert ~offset "\n" st.buffer in
       let cursor = Cursor.apply_edit ~offset ~deleted:0 ~inserted:1 st.cursor in
       { st with buffer; cursor; modified = true }, Noop
+  (* ── navigation ─────────────────────────────────────────────────── *)
+  | Move target ->
+      let buf = st.buffer in
+      let cur = Cursor.primary st.cursor in
+      let head = cur.head in
+      let new_head = match target with
+        | CharF -> min (Buffer.length buf) (head + utf8_char_length_at buf head)
+        | CharB -> max 0 (head - utf8_char_length_before buf head)
+        | LineN ->
+            let (l, c) = Buffer.offset_to_line_col ~offset:head buf in
+            if l + 1 < Buffer.line_count buf then
+              let next_line_start = Buffer.line_to_offset ~line:(l + 1) buf in
+              let next_line_len = 
+                if l + 2 < Buffer.line_count buf 
+                then Buffer.line_to_offset ~line:(l + 2) buf - next_line_start - 1
+                else Buffer.length buf - next_line_start
+              in
+              next_line_start + min c next_line_len
+            else head
+        | LineP ->
+            let (l, c) = Buffer.offset_to_line_col ~offset:head buf in
+            if l > 0 then
+              let prev_line_start = Buffer.line_to_offset ~line:(l - 1) buf in
+              let prev_line_len = Buffer.line_to_offset ~line:l buf - prev_line_start - 1 in
+              prev_line_start + min c prev_line_len
+            else head
+        | WordF -> Buffer.next_word_boundary ~offset:head buf
+        | WordB -> Buffer.prev_word_boundary ~offset:head buf
+        | LineStart ->
+            let (l, c) = Buffer.offset_to_line_col ~offset:head buf in
+            let first_non_ws = Buffer.first_non_whitespace ~line:l buf in
+            let line_start = Buffer.line_to_offset ~line:l buf in
+            if c = first_non_ws then line_start else line_start + first_non_ws
+        | LineEnd ->
+            let (l, _) = Buffer.offset_to_line_col ~offset:head buf in
+            if l + 1 < Buffer.line_count buf 
+            then Buffer.line_to_offset ~line:(l + 1) buf - 1
+            else Buffer.length buf
+        | BufStart -> 0
+        | BufEnd -> Buffer.length buf
+      in
+      { st with cursor = Cursor.create new_head }, Noop
+  | DeleteForward ->
+      let offset = (Cursor.primary st.cursor).head in
+      let char_len = utf8_char_length_at st.buffer offset in
+      if char_len > 0 then
+        let buffer = Buffer.delete ~offset ~length:char_len st.buffer in
+        let cursor = Cursor.apply_edit ~offset ~deleted:char_len ~inserted:0 st.cursor in
+        { st with buffer; cursor; modified = true }, Noop
+      else st, Noop
+  | KillLine ->
+      let offset = (Cursor.primary st.cursor).head in
+      let (l, _) = Buffer.offset_to_line_col ~offset st.buffer in
+      let line_end = 
+        if l + 1 < Buffer.line_count st.buffer 
+        then Buffer.line_to_offset ~line:(l + 1) st.buffer - 1
+        else Buffer.length st.buffer
+      in
+      let kill_len = if offset = line_end then
+          if l + 1 < Buffer.line_count st.buffer then 1 else 0
+        else line_end - offset
+      in
+      if kill_len > 0 then
+        let buffer = Buffer.delete ~offset ~length:kill_len st.buffer in
+        let cursor = Cursor.apply_edit ~offset ~deleted:kill_len ~inserted:0 st.cursor in
+        { st with buffer; cursor; modified = true }, Noop
+      else st, Noop
   (* ── C-x prefix ─────────────────────────────────────────────────── *)
   | PendingCx ->
       { st with mode = PendingCx }, Noop
@@ -166,3 +285,5 @@ let update state action =
   | Ignore ->
       (* Also resets PendingCx if an unrecognised second key arrives *)
       { st with mode = Normal }, Noop
+  in
+  (ensure_cursor_visible new_st, cmd)

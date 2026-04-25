@@ -10,6 +10,10 @@ module type S = sig
   val line_count : t -> int
   val line_to_offset : line:int -> t -> int
   val offset_to_line_col : offset:int -> t -> (int * int)
+  val is_word_char : Uchar.t -> bool
+  val first_non_whitespace : line:int -> t -> int
+  val next_word_boundary : offset:int -> t -> int
+  val prev_word_boundary : offset:int -> t -> int
 end
 
 module SimpleBuffer = struct
@@ -79,6 +83,83 @@ module SimpleBuffer = struct
     in
     if offset < 0 then (0, 0)
     else find_line 0 offset
+
+  let is_word_char c =
+    let c_int = Uchar.to_int c in
+    (c_int >= Char.code 'a' && c_int <= Char.code 'z') ||
+    (c_int >= Char.code 'A' && c_int <= Char.code 'Z') ||
+    (c_int >= Char.code '0' && c_int <= Char.code '9')
+
+  let first_non_whitespace ~line t =
+    if line < 0 || line >= Array.length t then 0
+    else
+      let s = t.(line) in
+      let rec loop i =
+        if i >= String.length s then String.length s
+        else if s.[i] = ' ' || s.[i] = '\t' then loop (i + 1)
+        else i
+      in
+      loop 0
+
+  let next_word_boundary ~offset t =
+    let s = to_string t in
+    let len = String.length s in
+    let rec skip_non_words i =
+      if i >= len then len
+      else
+        let decoder = Uutf.decoder (`String (String.sub s i (len - i))) in
+        match Uutf.decode decoder with
+        | `Uchar c -> if is_word_char c then i else skip_non_words (i + (Uutf.decoder_byte_count decoder))
+        | _ -> len
+    in
+    let rec skip_words i =
+      if i >= len then len
+      else
+        let decoder = Uutf.decoder (`String (String.sub s i (len - i))) in
+        match Uutf.decode decoder with
+        | `Uchar c -> if not (is_word_char c) then i else skip_words (i + (Uutf.decoder_byte_count decoder))
+        | _ -> len
+    in
+    let rec find_next i =
+      if i >= len then len
+      else
+        let decoder = Uutf.decoder (`String (String.sub s i (len - i))) in
+        match Uutf.decode decoder with
+        | `Uchar c ->
+            if is_word_char c then skip_words i
+            else find_next (skip_non_words i)
+        | _ -> len
+    in
+    find_next offset
+
+  let prev_word_boundary ~offset t =
+    let s = to_string t in
+    let is_word_at i =
+      if i < 0 then false
+      else
+        let rec find_start j =
+          if j <= 0 then 0
+          else if Char.code s.[j] land 0xC0 = 0x80 then find_start (j - 1)
+          else j
+        in
+        let start = find_start i in
+        let decoder = Uutf.decoder (`String (String.sub s start (String.length s - start))) in
+        match Uutf.decode decoder with
+        | `Uchar c -> is_word_char c
+        | _ -> false
+    in
+    let rec skip_non_words i =
+      if i <= 0 then 0
+      else if is_word_at (i - 1) then i
+      else skip_non_words (i - 1)
+    in
+    let rec skip_words i =
+      if i <= 0 then 0
+      else if not (is_word_at (i - 1)) then i
+      else skip_words (i - 1)
+    in
+    let i = skip_non_words offset in
+    skip_words i
 end
 
 include SimpleBuffer

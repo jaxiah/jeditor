@@ -7,6 +7,12 @@ type mode =
   | PromptSaveAs
   | ConfirmQuit
 
+type move_target =
+  | CharF | CharB | LineN | LineP
+  | WordF | WordB
+  | LineStart | LineEnd
+  | BufStart | BufEnd
+
 type cmd =
   | Noop
   | WriteFile of { path : string; content : string }
@@ -27,17 +33,25 @@ type action =
   | WriteError of string
   | Quit
   | Ignore
+  | Move of move_target
+  | DeleteForward
+  | KillLine
+  | Resize of { cols : int; rows : int }
 
-type app_state = {
-  buffer    : Buffer.t;
-  cursor    : Cursor.t;
-  quit      : bool;
-  file_path : string option;
-  modified  : bool;
-  mode      : mode;
-  minibuf   : string;
-  message   : string;
-}
+  type app_state = {
+  buffer          : Buffer.t;
+  cursor          : Cursor.t;
+  quit            : bool;
+  file_path       : string option;
+  modified        : bool;
+  mode            : mode;
+  minibuf         : string;
+  message         : string;
+  scroll_top_line : int;
+  cols            : int;
+  rows            : int;
+  }
+
 
 val initial_state : app_state
 val state_with_file : path:string -> content:string -> app_state
