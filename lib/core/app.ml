@@ -105,7 +105,7 @@ let action_of_key mode key =
       | Key.Ctrl 'e'             -> Move LineEnd
       | Key.Ctrl 'd'             -> DeleteForward
       | Key.Ctrl 'k'             -> KillLine
-      | Key.Ctrl '/'             -> Undo
+      | Key.Ctrl '/' | Key.Ctrl '_' -> Undo
       | Key.Meta (c) when Uchar.to_char c = '_' -> Redo
       | _                        -> Ignore)
   | PendingCx -> (match key with

@@ -45,6 +45,7 @@ let next_key read_char =
        | Some '\r' | Some '\n' -> Some (Key.Ctrl_meta 'm')
        | Some '\t' -> Some (Key.Ctrl_meta 'i')
        | Some '\x7f' | Some '\x08' -> Some (Key.Ctrl_meta 'h')
+       | Some '\x1f' -> Some (Key.Ctrl_meta '/')
        | Some c when c >= '\x00' && c <= '\x1f' ->
            let code = int_of_char c in
            let base =
@@ -57,6 +58,7 @@ let next_key read_char =
   | Some '\r' | Some '\n' -> Some Key.Enter
   | Some '\t' -> Some Key.Tab
   | Some '\x7f' | Some '\x08' -> Some Key.Backspace
+  | Some '\x1f' -> Some (Key.Ctrl '/')
   | Some c when c >= '\x00' && c <= '\x1f' ->
       let code = int_of_char c in
       let base =
