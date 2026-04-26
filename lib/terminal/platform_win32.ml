@@ -64,18 +64,101 @@ let key_of_win32_event (char_code, virtual_key, control_state) =
   | _ -> None
 
 module Input : Input_intf.S = struct
-  type t = { mutable pending_alt : bool; mutable pending_esc : bool }
+  type t = { mutable pending_alt : bool }
 
   let create () =
-    if enable_vt () then Ok { pending_alt = false; pending_esc = false }
+    if enable_vt () then Ok { pending_alt = false }
     else Error "Failed to enable virtual terminal processing"
 
-  (* Apply ESC/Meta prefix to a key, mirroring escape_parser.ml on Unix *)
-  let apply_meta = function
-    | Key.Char c    -> Key.Meta c
-    | Key.Ctrl c    -> Key.Ctrl_meta c
-    | Key.Backspace -> Key.Ctrl_meta 'h'
-    | other         -> other
+  (* Read the next VT char event (VK=0, char_code>0).
+     VK-only events (navigation keys arriving alongside VT sequences) are
+     silently skipped here — in practice, VT char events for a single key
+     press all arrive atomically before the next key is pressed. *)
+  let read_vt_char () =
+    let rec loop () =
+      match read_key_event () with
+      | None -> None
+      | Some (code, 0, _) when code > 0 -> Some (char_of_int code)
+      | _ -> loop ()   (* skip VK-only or null events while parsing a sequence *)
+    in
+    loop ()
+
+  (* Parse the rest of a CSI / ESC sequence after the initial ESC has been
+     consumed.  Mirrors escape_parser.ml so that PageUp (\x1b[5~), F-keys,
+     arrows, and Meta+letter sequences all map to the right Key.t values. *)
+  let parse_after_esc () =
+    match read_vt_char () with
+    | None -> Key.Escape
+    | Some '[' ->
+        let rec read_params acc =
+          match read_vt_char () with
+          | None -> Key.Escape
+          | Some c when c >= '0' && c <= '9' ->
+              read_params (acc ^ String.make 1 c)
+          | Some ';' ->
+              (* Extended params (e.g. modifiers): consume rest and return Escape *)
+              let rec consume () =
+                match read_vt_char () with
+                | None | Some 'M' | Some 'm' -> ()
+                | Some c when c >= '@' && c <= '~' -> ignore c
+                | _ -> consume ()
+              in
+              consume (); Key.Escape
+          | Some '<' ->
+              (* SGR mouse sequence \x1b[<Pb;Px;PyM: consume and discard *)
+              let rec consume () =
+                match read_vt_char () with
+                | None | Some 'M' | Some 'm' -> ()
+                | _ -> consume ()
+              in
+              consume (); Key.Escape
+          | Some '~' ->
+              (match acc with
+               | "3"  -> Key.Delete
+               | "5"  -> Key.Page_up
+               | "6"  -> Key.Page_down
+               | "11" -> Key.Function 1
+               | "12" -> Key.Function 2
+               | "13" -> Key.Function 3
+               | "14" -> Key.Function 4
+               | "15" -> Key.Function 5
+               | "17" -> Key.Function 6
+               | "18" -> Key.Function 7
+               | "19" -> Key.Function 8
+               | "20" -> Key.Function 9
+               | "21" -> Key.Function 10
+               | "23" -> Key.Function 11
+               | "24" -> Key.Function 12
+               | _    -> Key.Escape)
+          | Some 'A' -> Key.Arrow `Up
+          | Some 'B' -> Key.Arrow `Down
+          | Some 'C' -> Key.Arrow `Right
+          | Some 'D' -> Key.Arrow `Left
+          | Some 'H' -> Key.Home
+          | Some 'F' -> Key.End
+          | Some _   -> Key.Escape
+        in
+        read_params ""
+    | Some 'O' ->
+        (match read_vt_char () with
+         | Some 'P' -> Key.Function 1
+         | Some 'Q' -> Key.Function 2
+         | Some 'R' -> Key.Function 3
+         | Some 'S' -> Key.Function 4
+         | _        -> Key.Escape)
+    | Some '\r' | Some '\n' -> Key.Ctrl_meta 'm'
+    | Some '\t'             -> Key.Ctrl_meta 'i'
+    | Some '\x7f'           -> Key.Ctrl_meta 'h'
+    | Some '\x1f'           -> Key.Ctrl_meta '/'
+    | Some c when c >= '\x00' && c <= '\x1f' ->
+        let code = int_of_char c in
+        let base =
+          if code >= 1 && code <= 26 then char_of_int (code + 96)
+          else if code = 0 then '@'
+          else char_of_int (code + 64)
+        in
+        Key.Ctrl_meta base
+    | Some c -> Key.Meta (Uchar.of_char c)
 
   let rec next_key input =
     match read_key_event () with
@@ -91,20 +174,14 @@ module Input : Input_intf.S = struct
           else event
         in
         input.pending_alt <- is_alt_down && virtual_key = 0x12 && char_code = 0;
+        (* ESC char event (char=27, VK=0): parse the full escape / CSI sequence.
+           ENABLE_VIRTUAL_TERMINAL_INPUT delivers PageUp as \x1b[5~, Alt+letter
+           as \x1b+letter, arrows as \x1b[A etc. — all via char events with VK=0.
+           A single-char pending_esc flag is not enough; we need the full parser. *)
         (match key_of_win32_event effective_event with
-         | Some (Key.Ctrl '[') ->
-             (* ENABLE_VIRTUAL_TERMINAL_INPUT converts Alt+letter → ESC+letter.
-                ESC arrives as a char event (UnicodeChar=27, VK=0) → Key.Ctrl '['.
-                Buffer it and treat the next key as Meta-prefixed, exactly as
-                escape_parser.ml does on Unix. *)
-             input.pending_esc <- true;
-             next_key input
-         | result ->
-             let was_esc = input.pending_esc in
-             input.pending_esc <- false;
-             (match result with
-              | None     -> next_key input
-              | Some key -> Some (if was_esc then apply_meta key else key)))
+         | Some (Key.Ctrl '[') -> Some (parse_after_esc ())
+         | Some key            -> Some key
+         | None                -> next_key input)
 
   let close _ = disable_vt ()
 end
