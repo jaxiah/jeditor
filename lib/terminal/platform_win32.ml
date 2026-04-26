@@ -35,6 +35,8 @@ let key_of_win32_event (char_code, virtual_key, control_state) =
   | 0x28, _ -> Some (Key.Arrow `Down)
   | 0x21, _ -> Some Key.Page_up
   | 0x22, _ -> Some Key.Page_down
+  | 0x7FFE, _ -> Some Key.Scroll_up
+  | 0x7FFF, _ -> Some Key.Scroll_down
   | 0x24, _ -> Some Key.Home
   | 0x23, _ -> Some Key.End
   | 0x2E, _ -> Some Key.Delete

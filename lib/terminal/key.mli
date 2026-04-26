@@ -14,6 +14,8 @@ type t =
   | Page_down
   | Home
   | End
+  | Scroll_up
+  | Scroll_down
 
 val pp : Format.formatter -> t -> unit
 val of_string : string -> t option

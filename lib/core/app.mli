@@ -48,6 +48,8 @@ type action =
   | Resize of { cols : int; rows : int }
   | Undo | Redo
   | Help | MinibufTab
+  | ScrollPage  of [ `Down | `Up ]
+  | ScrollLines of [ `Down | `Up ]
 
 type snapshot = {
   buffer : Buffer.t;

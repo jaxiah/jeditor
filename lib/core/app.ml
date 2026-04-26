@@ -82,6 +82,8 @@ type action =
   | Redo
   | Help
   | MinibufTab
+  | ScrollPage  of [ `Down | `Up ]
+  | ScrollLines of [ `Down | `Up ]
 
 type snapshot = {
   buffer : Buffer.t;
@@ -398,6 +400,10 @@ let command_of_name name =
   | "list-buffers"         -> ShowBufferList
   | "kill-buffer"          -> StartKillBuffer
   | "cancel"               -> Cancel
+  | "scroll-page-down"     -> ScrollPage  `Down
+  | "scroll-page-up"       -> ScrollPage  `Up
+  | "scroll-line-down"     -> ScrollLines `Down
+  | "scroll-line-up"       -> ScrollLines `Up
   | _                      -> Ignore
 
 (** Return the byte length of the UTF-8 codepoint ending at [offset]. *)
@@ -638,6 +644,38 @@ let rec update state action =
   let (new_st, cmd) = match action with
   | Resize { cols; rows } ->
       { st with cols; rows }, Noop
+  | ScrollPage dir ->
+      let line_count = Buffer.line_count st.buffer in
+      let reserved_rows = match st.mode with PromptMx -> 2 | _ -> 1 in
+      let viewport_height = max 1 (st.rows - reserved_rows) in
+      let page_size = max 1 (viewport_height - 1) in
+      let focused_window = Frame.focused_window st.frame in
+      let new_scroll_top =
+        match dir with
+        | `Down -> min (max 0 (line_count - 1)) (focused_window.scroll_top_line + page_size)
+        | `Up   -> max 0 (focused_window.scroll_top_line - page_size)
+      in
+      let new_cursor_line = min new_scroll_top (max 0 (line_count - 1)) in
+      let frame =
+        Frame.update_focused (fun w -> { w with Frame.scroll_top_line = new_scroll_top }) st.frame
+      in
+      { st with
+        cursor = Cursor.create (Buffer.line_to_offset ~line:new_cursor_line st.buffer);
+        scroll_top_line = new_scroll_top;
+        frame }, Noop
+  | ScrollLines dir ->
+      let line_count = Buffer.line_count st.buffer in
+      let scroll_amount = 3 in
+      let focused_window = Frame.focused_window st.frame in
+      let new_scroll_top =
+        match dir with
+        | `Down -> min (max 0 (line_count - 1)) (focused_window.scroll_top_line + scroll_amount)
+        | `Up   -> max 0 (focused_window.scroll_top_line - scroll_amount)
+      in
+      let frame =
+        Frame.update_focused (fun w -> { w with Frame.scroll_top_line = new_scroll_top }) st.frame
+      in
+      { st with scroll_top_line = new_scroll_top; frame }, Noop
   | SplitWindowHorizontal ->
       let frame = Frame.split_focused Frame.Horizontal st.frame in
       { st with frame }, Noop
@@ -1072,6 +1110,8 @@ let default_registry =
     "split-window-below"; "split-window-right"; "other-window";
     "delete-window"; "delete-other-windows"; "switch-to-buffer";
     "list-buffers"; "kill-buffer";
+    "scroll-page-down"; "scroll-page-up";
+    "scroll-line-down"; "scroll-line-up";
   ] in
   List.fold_left (fun r name ->
     let action = command_of_name name in

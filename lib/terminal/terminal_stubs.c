@@ -120,6 +120,23 @@ CAMLprim value jeditor_read_key_event(value unit) {
             Store_field(some, 0, tuple);
             CAMLreturn(some);
         }
+
+        /* Mouse wheel: synthesise a scroll event as a fake VK code.
+           0x7FFE = scroll up (positive delta), 0x7FFF = scroll down. */
+        if (ir[0].EventType == MOUSE_EVENT) {
+            MOUSE_EVENT_RECORD mouse = ir[0].Event.MouseEvent;
+            if (mouse.dwEventFlags & MOUSE_WHEELED) {
+                int delta = (int)(SHORT)HIWORD(mouse.dwButtonState);
+                int synthetic_vk = (delta > 0) ? 0x7FFE : 0x7FFF;
+                tuple = caml_alloc(3, 0);
+                Store_field(tuple, 0, Val_int(0));
+                Store_field(tuple, 1, Val_int(synthetic_vk));
+                Store_field(tuple, 2, Val_int(0));
+                some = caml_alloc(1, 0);
+                Store_field(some, 0, tuple);
+                CAMLreturn(some);
+            }
+        }
     }
 }
 

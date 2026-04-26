@@ -14,6 +14,8 @@ type t =
   | Page_down
   | Home
   | End
+  | Scroll_up
+  | Scroll_down
 
 let pp fmt t =
   match t with
@@ -45,6 +47,8 @@ let pp fmt t =
   | Page_down -> Format.fprintf fmt "<page_down>"
   | Home -> Format.fprintf fmt "<home>"
   | End -> Format.fprintf fmt "<end>"
+  | Scroll_up -> Format.fprintf fmt "<scroll_up>"
+  | Scroll_down -> Format.fprintf fmt "<scroll_down>"
 
 let of_string s =
   let len = String.length s in
@@ -71,4 +75,6 @@ let of_string s =
   else if s = "<page_down>" then Some Page_down
   else if s = "<home>" then Some Home
   else if s = "<end>" then Some End
+  else if s = "<scroll_up>" then Some Scroll_up
+  else if s = "<scroll_down>" then Some Scroll_down
   else None
