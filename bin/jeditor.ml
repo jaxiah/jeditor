@@ -29,18 +29,20 @@ let utf8_cells text =
 
 let render ?(force=false) term state =
   let (cols, rows) = Terminal.size term in
-  let frame = ref (Diff_renderer.blank ~cols ~rows) in
+  (* Use Diff_renderer.build so frame cells are written into a single mutable
+     array rather than copying the whole array on every set. *)
+  let set_cell_ref = ref (fun ~row:_ ~col:_ _cell -> ()) in
   let put_text ~row ~col text attr =
     if row >= 0 && row < rows then
       utf8_cells text
       |> List.iteri (fun i text ->
         let col = col + i in
         if col >= 0 && col < cols then
-          frame := Diff_renderer.set ~row ~col { Diff_renderer.text; attr } !frame)
+          !set_cell_ref ~row ~col { Diff_renderer.text; attr })
   in
   let clear_line ~row =
     for col = 0 to cols - 1 do
-      frame := Diff_renderer.set ~row ~col Diff_renderer.blank_cell !frame
+      !set_cell_ref ~row ~col Diff_renderer.blank_cell
     done
   in
   let line_count = Buffer.line_count state.App.buffer in
@@ -243,24 +245,25 @@ let render ?(force=false) term state =
   in
 
   let frame_rect = { Frame.x = 0; y = 0; width = cols; height = frame_rows } in
-  List.iter render_window (Frame.layouts ~cols ~rows:frame_rows state.App.frame);
-  draw_dividers frame_rect state.App.frame.Frame.root;
-
-  if state.App.mode = App.PromptMx && rows >= 2 then begin
-    let completions =
-      Registry.complete ~prefix:state.App.minibuf state.App.registry
-      |> String.concat " "
-    in
-    let completion_text =
-      if String.length completions > cols
-      then String.sub completions 0 cols
-      else completions
-    in
-    clear_line ~row:(rows - 2);
-    put_text ~row:(rows - 2) ~col:0 completion_text Attr.default
-  end;
-
-  let output, next_diff_state = Diff_renderer.render ~force !diff_state !frame in
+  let frame = Diff_renderer.build ~cols ~rows (fun ~set_cell ->
+    set_cell_ref := set_cell;
+    List.iter render_window (Frame.layouts ~cols ~rows:frame_rows state.App.frame);
+    draw_dividers frame_rect state.App.frame.Frame.root;
+    if state.App.mode = App.PromptMx && rows >= 2 then begin
+      let completions =
+        Registry.complete ~prefix:state.App.minibuf state.App.registry
+        |> String.concat " "
+      in
+      let completion_text =
+        if String.length completions > cols
+        then String.sub completions 0 cols
+        else completions
+      in
+      clear_line ~row:(rows - 2);
+      put_text ~row:(rows - 2) ~col:0 completion_text Attr.default
+    end
+  ) in
+  let output, next_diff_state = Diff_renderer.render ~force !diff_state frame in
   diff_state := next_diff_state;
   Terminal.write_raw term "\x1b[?25l";
   Terminal.write_raw term output;

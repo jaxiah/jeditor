@@ -18,6 +18,19 @@ let blank ~cols ~rows =
   let rows = max 0 rows in
   { cols; rows; cells = Array.make (cols * rows) blank_cell }
 
+(* Build a frame by calling [f] with a mutable [set_cell] function.
+   Avoids the O(cols*rows) Array.copy that [set] incurs on every cell write. *)
+let build ~cols ~rows f =
+  let cols = max 0 cols in
+  let rows = max 0 rows in
+  let cells = Array.make (cols * rows) blank_cell in
+  let set_cell ~row ~col cell =
+    if row >= 0 && row < rows && col >= 0 && col < cols then
+      cells.(row * cols + col) <- cell
+  in
+  f ~set_cell;
+  { cols; rows; cells }
+
 let index frame ~row ~col = (row * frame.cols) + col
 
 let in_bounds frame ~row ~col =
